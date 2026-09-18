@@ -1,0 +1,17 @@
+# macOS and Xcode user/build files
+.DS_Store
+DerivedData/
+build/
+**/build/
+xcuserdata/
+*.xcuserstate
+
+# JUCE and generated plugin binaries
+*.app/
+*.component/
+*.vst/
+*.vst3/
+*.a
+
+# Temporary repository metadata backup created during reorganization
+.git_backup*/
