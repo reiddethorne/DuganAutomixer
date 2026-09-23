@@ -9,6 +9,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <array>
+
 //==============================================================================
 DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -134,6 +136,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+    const auto numSamples = buffer.getNumSamples();
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -142,7 +145,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // when they first compile a plugin, but obviously you don't need to keep
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+        buffer.clear (i, 0, numSamples);
 
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
@@ -150,22 +153,24 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
+    std::array<float, 2> channelPowers {};
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);
         float sumOfSquares = 0.0f;
-        for (int sampleIndex = 0; sampleIndex < buffer.getNumSamples(); ++sampleIndex)
+        for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
         {
             float sample = channelData[sampleIndex];
             sumOfSquares += sample * sample;
             channelData[sampleIndex] *= 0.5f; // Example processing: reduce volume by half
         }
-        if (buffer.getNumSamples() > 0)
+        if (numSamples > 0)
         {
-            float meanSquare = sumOfSquares / buffer.getNumSamples();
-            juce::ignoreUnused(meanSquare);
+            channelPowers[channel] = sumOfSquares / numSamples;
         }
     }
+    juce::ignoreUnused (channelPowers);
+
 }
 
 //==============================================================================
