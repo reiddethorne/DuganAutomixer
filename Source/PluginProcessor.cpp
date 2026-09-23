@@ -10,6 +10,7 @@
 #include "PluginEditor.h"
 
 #include <array>
+#include <cmath>
 
 //==============================================================================
 DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
@@ -162,15 +163,24 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         {
             float sample = channelData[sampleIndex];
             sumOfSquares += sample * sample;
-            channelData[sampleIndex] *= 0.5f; // Example processing: reduce volume by half
         }
         if (numSamples > 0)
         {
             channelPowers[channel] = sumOfSquares / numSamples;
         }
     }
-    juce::ignoreUnused (channelPowers);
-
+    constexpr float powerFloor = 1.0e-9f;
+    const float totalPower = channelPowers[0] + channelPowers[1] + 2 * powerFloor;
+    std::array<float, 2> targetGains {};
+    for (int channel = 0; channel < 2; ++channel) 
+    {
+        targetGains[channel] =
+        std::sqrt(
+        (channelPowers[channel] + powerFloor)
+        / totalPower
+        );
+    }
+    juce::ignoreUnused (targetGains);
 }
 
 //==============================================================================
