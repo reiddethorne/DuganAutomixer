@@ -155,7 +155,8 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
     std::array<float, 2> channelPowers {};
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    //measure the power of each channel without modifying the audio data
+    for (int channel = 0; channel < totalNumInputChannels; ++channel) 
     {
         auto* channelData = buffer.getWritePointer (channel);
         float sumOfSquares = 0.0f;
@@ -172,6 +173,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     constexpr float powerFloor = 1.0e-9f;
     const float totalPower = channelPowers[0] + channelPowers[1] + 2 * powerFloor;
     std::array<float, 2> targetGains {};
+    //calculate target gains for each channel based on their relative power
     for (int channel = 0; channel < 2; ++channel) 
     {
         targetGains[channel] =
@@ -180,7 +182,17 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         / totalPower
         );
     }
-    juce::ignoreUnused (targetGains);
+    //apply the target gain to the samples in the buffer for each channel
+
+    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    {
+        auto* channelData = buffer.getWritePointer (channel);
+        const float gain = targetGains[channel];
+        for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
+        {
+            channelData[sampleIndex] *= gain;
+        }
+    }
 }
 
 //==============================================================================
