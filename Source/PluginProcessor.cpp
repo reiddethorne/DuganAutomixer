@@ -153,9 +153,17 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        float sumOfSquares = 0.0f;
+        for (int sampleIndex = 0; sampleIndex < buffer.getNumSamples(); ++sampleIndex)
         {
-            channelData[sample] *= 0.5f; // Example processing: reduce volume by half
+            float sample = channelData[sampleIndex];
+            sumOfSquares += sample * sample;
+            channelData[sampleIndex] *= 0.5f; // Example processing: reduce volume by half
+        }
+        if (buffer.getNumSamples() > 0)
+        {
+            float meanSquare = sumOfSquares / buffer.getNumSamples();
+            juce::ignoreUnused(meanSquare);
         }
     }
 }
