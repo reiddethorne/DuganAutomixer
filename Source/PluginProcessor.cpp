@@ -170,11 +170,11 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
             channelPowers[channel] = sumOfSquares / numSamples;
         }
     }
-    constexpr float powerFloor = 1.0e-9f;
-    const float totalPower = channelPowers[0] + channelPowers[1] + 2 * powerFloor;
+    constexpr float powerFloor = 1.0e-9f; //power floor to avoid division by zero during silence
+    const float totalPower = channelPowers[0] + channelPowers[1] + numChannels * powerFloor;
     std::array<float, 2> targetGains {};
     //calculate target gains for each channel based on their relative power
-    for (int channel = 0; channel < 2; ++channel) 
+    for (int channel = 0; channel < numChannels; ++channel) 
     {
         targetGains[channel] =
         std::sqrt(
