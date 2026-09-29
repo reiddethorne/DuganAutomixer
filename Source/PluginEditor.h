@@ -31,6 +31,8 @@ private:
     juce::Label titleLabel;
     juce::Label channelOneLabel;
     juce::Label channelTwoLabel;
+    juce::Rectangle<int> channelOneMeterBounds;
+    juce::Rectangle<int> channelTwoMeterBounds;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessorEditor)
 };
