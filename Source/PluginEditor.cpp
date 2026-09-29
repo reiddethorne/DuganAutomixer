@@ -32,10 +32,24 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
     channelOneLabel.setFont(juce::FontOptions(15.0f));
     channelTwoLabel.setFont(juce::FontOptions(15.0f));
     setSize (500, 320);
+
+    // Start the timer to update the meter levels
+    startTimerHz(30); // Update at 30 Hz
 }
 
 DuganAutomixerAudioProcessorEditor::~DuganAutomixerAudioProcessorEditor()
 {
+    // Stop the timer when the editor is destroyed
+    stopTimer();
+}
+
+//==============================================================================
+void DuganAutomixerAudioProcessorEditor::timerCallback()
+{
+    channelOneMeterLevel = audioProcessor.getMeterGain (0);
+    channelTwoMeterLevel = audioProcessor.getMeterGain (1);
+
+    repaint();
 }
 
 //==============================================================================
@@ -49,10 +63,52 @@ void DuganAutomixerAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillRect(channelOneMeterBounds.toFloat());
     g.fillRect(channelTwoMeterBounds.toFloat());
 
-    // Draw meter outlines
+    // Limit the meter levels to the range [0, 1]
+    const auto channelOneLevel = juce::jlimit (
+    0.0f, 1.0f, channelOneMeterLevel);
+
+    const auto channelTwoLevel = juce::jlimit (
+    0.0f, 1.0f, channelTwoMeterLevel);
+
+    
+    // Draw the fill for channel one
+    auto channelOneFill = channelOneMeterBounds.toFloat();
+
+    const auto channelOneFillHeight =
+    channelOneFill.getHeight() * channelOneLevel;
+
+    const auto channelOneBottom = channelOneFill.getBottom();
+
+    channelOneFill.setY (
+        channelOneBottom - channelOneFillHeight);
+
+    channelOneFill.setHeight (channelOneFillHeight);
+
+    //Draw the fill for channel two
+
+    auto channelTwoFill = channelTwoMeterBounds.toFloat();
+
+    const auto channelTwoFillHeight =
+    channelTwoFill.getHeight() * channelTwoLevel;
+
+    const auto channelTwoBottom = channelTwoFill.getBottom();
+
+    channelTwoFill.setY (
+        channelTwoBottom - channelTwoFillHeight);
+
+    channelTwoFill.setHeight (channelTwoFillHeight);
+
+    // Set the fill color and draw the filled rectangles for both channels
+    g.setColour (juce::Colours::limegreen);
+    g.fillRect (channelOneFill);
+    g.fillRect (channelTwoFill);
+
+    // Draw meter outlines last so they are on top of the fill
     g.setColour (juce::Colours::grey);
     g.drawRect(channelOneMeterBounds.toFloat());
     g.drawRect(channelTwoMeterBounds.toFloat());
+
+    
 
 }
 

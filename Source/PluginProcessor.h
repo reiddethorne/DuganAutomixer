@@ -9,6 +9,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
+#include <atomic>
 
 //==============================================================================
 /**
@@ -53,7 +55,15 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+
+    //==============================================================================
+    // Custom method to get the current gain for a specific channel for the meter display
+    float getMeterGain (int channel) const noexcept;
+
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessor)
+    static constexpr int numChannels = 2; // Number of channels for the automixer
+    std::array<std::atomic<float>, numChannels> meterGains
+    { 0.0f, 0.0f }; // Atomic variables to hold the current gain for each channel
 };

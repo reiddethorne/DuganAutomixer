@@ -154,9 +154,10 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    constexpr int numChannels = 2; //assuming stereo input
+
+
     std::array<float, numChannels> channelPowers {};
-    //measure the power of each channel without modifying the audio data
+    // Measure the power of each channel without modifying the audio data
     for (int channel = 0; channel < totalNumInputChannels; ++channel) 
     {
         auto* channelData = buffer.getWritePointer (channel);
@@ -171,20 +172,29 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
             channelPowers[channel] = sumOfSquares / numSamples;
         }
     }
-    constexpr float powerFloor = 1.0e-9f; //power floor to avoid division by zero during silence
+    constexpr float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
     const float totalPower = channelPowers[0] + channelPowers[1] + numChannels * powerFloor;
     std::array<float, numChannels> targetGains {};
-    //calculate target gains for each channel based on their relative power
+
+
     for (int channel = 0; channel < numChannels; ++channel) 
     {
+        // Calculate the target gain for the channel based on its power relative to the total power
         targetGains[channel] =
         std::sqrt(
         (channelPowers[channel] + powerFloor)
         / totalPower
         );
-    }
-    //apply the target gain to the samples in the buffer for each channel
 
+        // Store the target gain in the atomic variable for the meter display
+        meterGains[channel].store (
+        targetGains[channel],
+        std::memory_order_relaxed);
+        // Note: Using relaxed memory order here is acceptable for this use case, as we are only reading the value in the GUI thread and writing it in the audio thread. The GUI thread will eventually see the updated value, and we don't require strict synchronization.
+    }
+
+
+    // Apply the target gain to the samples in the buffer for each channel
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);
@@ -194,6 +204,17 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
             channelData[sampleIndex] *= gain;
         }
     }
+}
+
+//==============================================================================
+float DuganAutomixerAudioProcessor::getMeterGain (
+    int channel) const noexcept
+{
+    if (! juce::isPositiveAndBelow (channel, numChannels))
+        return 0.0f;
+
+    return meterGains[channel].load (
+        std::memory_order_relaxed);
 }
 
 //==============================================================================
