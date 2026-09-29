@@ -154,7 +154,8 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    std::array<float, 2> channelPowers {};
+    constexpr int numChannels = 2; //assuming stereo input
+    std::array<float, numChannels> channelPowers {};
     //measure the power of each channel without modifying the audio data
     for (int channel = 0; channel < totalNumInputChannels; ++channel) 
     {
@@ -172,7 +173,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     }
     constexpr float powerFloor = 1.0e-9f; //power floor to avoid division by zero during silence
     const float totalPower = channelPowers[0] + channelPowers[1] + numChannels * powerFloor;
-    std::array<float, 2> targetGains {};
+    std::array<float, numChannels> targetGains {};
     //calculate target gains for each channel based on their relative power
     for (int channel = 0; channel < numChannels; ++channel) 
     {
