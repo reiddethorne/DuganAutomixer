@@ -10,6 +10,63 @@
 #include "PluginEditor.h"
 
 //==============================================================================
+void GainMeter::setGain (float newGain)
+{
+    gain = juce::jlimit (0.0f, 1.0f, newGain);
+    repaint();
+}
+
+void GainMeter::paint (juce::Graphics& g)
+{
+    // Keep some space on the left side of the component for the scale.
+    auto meterBounds = getLocalBounds();
+    auto scaleBounds = meterBounds.removeFromLeft (40);
+    const auto meterBoundsFloat = meterBounds.toFloat();
+
+    g.setColour (juce::Colours::black.withAlpha (0.4f));
+    g.fillRect (meterBoundsFloat);
+
+    // Reduce the fill from the top so that it grows upward from the bottom.
+    auto fillBounds = meterBoundsFloat;
+    const auto fillHeight = fillBounds.getHeight() * gain;
+    fillBounds.setY (fillBounds.getBottom() - fillHeight);
+    fillBounds.setHeight (fillHeight);
+
+    g.setColour (juce::Colours::limegreen);
+    g.fillRect (fillBounds);
+
+    g.setColour (juce::Colours::grey);
+    g.drawRect (meterBoundsFloat);
+
+    // Convert each dB value to linear gain so its mark matches the meter fill.
+    const auto drawScaleMark = [&] (float linearGain, const char* label)
+    {
+        const auto markY = meterBoundsFloat.getBottom()
+                           - meterBoundsFloat.getHeight() * linearGain;
+        const auto labelY = juce::jlimit (0,
+                                         getHeight() - 16,
+                                         juce::roundToInt (markY) - 8);
+
+        g.drawHorizontalLine (juce::roundToInt (markY),
+                              meterBoundsFloat.getX() - 5.0f,
+                              meterBoundsFloat.getX());
+
+        g.drawText (label,
+                    scaleBounds.getX(),
+                    labelY,
+                    scaleBounds.getWidth() - 8,
+                    16,
+                    juce::Justification::centredRight);
+    };
+
+    drawScaleMark (1.0f, "0");
+    drawScaleMark (juce::Decibels::decibelsToGain (-3.0f), "-3");
+    drawScaleMark (juce::Decibels::decibelsToGain (-6.0f), "-6");
+    drawScaleMark (juce::Decibels::decibelsToGain (-12.0f), "-12");
+    drawScaleMark (0.0f, "-inf");
+}
+
+//==============================================================================
 DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAutomixerAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
@@ -27,6 +84,10 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
     addAndMakeVisible(titleLabel);
     addAndMakeVisible(channelOneLabel);
     addAndMakeVisible(channelTwoLabel);
+
+    for (auto& meter : gainMeters)
+        addAndMakeVisible (meter);
+
     titleLabel.setFont(
         juce::FontOptions(20.0f, juce::Font::bold));
     channelOneLabel.setFont(juce::FontOptions(15.0f));
@@ -46,10 +107,8 @@ DuganAutomixerAudioProcessorEditor::~DuganAutomixerAudioProcessorEditor()
 //==============================================================================
 void DuganAutomixerAudioProcessorEditor::timerCallback()
 {
-    channelOneMeterLevel = audioProcessor.getMeterGain (0);
-    channelTwoMeterLevel = audioProcessor.getMeterGain (1);
-
-    repaint();
+    gainMeters[0].setGain (audioProcessor.getMeterGain (0));
+    gainMeters[1].setGain (audioProcessor.getMeterGain (1));
 }
 
 //==============================================================================
@@ -57,59 +116,6 @@ void DuganAutomixerAudioProcessorEditor::paint (juce::Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
-    // Draw meter backgrounds
-    g.setColour (juce::Colours::black.withAlpha(0.4f));
-    g.fillRect(channelOneMeterBounds.toFloat());
-    g.fillRect(channelTwoMeterBounds.toFloat());
-
-    // Limit the meter levels to the range [0, 1]
-    const auto channelOneLevel = juce::jlimit (
-    0.0f, 1.0f, channelOneMeterLevel);
-
-    const auto channelTwoLevel = juce::jlimit (
-    0.0f, 1.0f, channelTwoMeterLevel);
-
-    
-    // Draw the fill for channel one
-    auto channelOneFill = channelOneMeterBounds.toFloat();
-
-    const auto channelOneFillHeight =
-    channelOneFill.getHeight() * channelOneLevel;
-
-    const auto channelOneBottom = channelOneFill.getBottom();
-
-    channelOneFill.setY (
-        channelOneBottom - channelOneFillHeight);
-
-    channelOneFill.setHeight (channelOneFillHeight);
-
-    //Draw the fill for channel two
-
-    auto channelTwoFill = channelTwoMeterBounds.toFloat();
-
-    const auto channelTwoFillHeight =
-    channelTwoFill.getHeight() * channelTwoLevel;
-
-    const auto channelTwoBottom = channelTwoFill.getBottom();
-
-    channelTwoFill.setY (
-        channelTwoBottom - channelTwoFillHeight);
-
-    channelTwoFill.setHeight (channelTwoFillHeight);
-
-    // Set the fill color and draw the filled rectangles for both channels
-    g.setColour (juce::Colours::limegreen);
-    g.fillRect (channelOneFill);
-    g.fillRect (channelTwoFill);
-
-    // Draw meter outlines last so they are on top of the fill
-    g.setColour (juce::Colours::grey);
-    g.drawRect(channelOneMeterBounds.toFloat());
-    g.drawRect(channelTwoMeterBounds.toFloat());
-
-    
-
 }
 
 void DuganAutomixerAudioProcessorEditor::resized()
@@ -131,7 +137,10 @@ void DuganAutomixerAudioProcessorEditor::resized()
     channelTwoLabel.setBounds (
         area.removeFromTop (35).reduced (5));
 
-    // After removing the label area from each channel region, use the remaining area for the meters
-    channelOneMeterBounds = leftArea.reduced (60, 10);
-    channelTwoMeterBounds = area.reduced (60, 10);
+    // Each meter component includes the bar plus space for its scale labels.
+    gainMeters[0].setBounds (
+        leftArea.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
+
+    gainMeters[1].setBounds (
+        area.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
 }
