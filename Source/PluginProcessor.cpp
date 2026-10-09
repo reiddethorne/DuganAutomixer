@@ -156,7 +156,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // interleaved by keeping the same state.
 
 
-    std::array<float, numChannels> channelPowers {};
+    std::array<float, automixerChannelCount> channelPowers {};
     // Measure the power of each channel without modifying the audio data
     for (int channel = 0; channel < totalNumInputChannels; ++channel) 
     {
@@ -173,11 +173,12 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         }
     }
     constexpr float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
-    const float totalPower = channelPowers[0] + channelPowers[1] + numChannels * powerFloor;
-    std::array<float, numChannels> targetGains {};
+    const float totalPower = channelPowers[0] + channelPowers[1]
+                             + automixerChannelCount * powerFloor;
+    std::array<float, automixerChannelCount> targetGains {};
 
 
-    for (int channel = 0; channel < numChannels; ++channel) 
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
     {
         // Calculate the target gain for the channel based on its power relative to the total power
         targetGains[channel] =
@@ -210,7 +211,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 float DuganAutomixerAudioProcessor::getMeterGain (
     int channel) const noexcept
 {
-    if (! juce::isPositiveAndBelow (channel, numChannels))
+    if (! juce::isPositiveAndBelow (channel, automixerChannelCount))
         return 0.0f;
 
     return meterGains[channel].load (

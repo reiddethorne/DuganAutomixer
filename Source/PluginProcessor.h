@@ -18,6 +18,8 @@
 class DuganAutomixerAudioProcessor  : public juce::AudioProcessor
 {
 public:
+    static constexpr int automixerChannelCount = 2;
+
     //==============================================================================
     DuganAutomixerAudioProcessor();
     ~DuganAutomixerAudioProcessor() override;
@@ -62,8 +64,8 @@ public:
 
 private:
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessor)
-    static constexpr int numChannels = 2; // Number of channels for the automixer
-    std::array<std::atomic<float>, numChannels> meterGains
+    std::array<std::atomic<float>, automixerChannelCount> meterGains
     { 0.0f, 0.0f }; // Atomic variables to hold the current gain for each channel
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessor)
 };

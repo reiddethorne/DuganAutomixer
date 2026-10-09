@@ -31,6 +31,24 @@ private:
 };
 
 //==============================================================================
+// Groups the label and gain meter belonging to one automixer channel.
+class ChannelStrip : public juce::Component
+{
+public:
+    ChannelStrip();
+
+    void setChannelNumber (int channelNumber);
+    void setGain (float newGain);
+    void resized() override;
+
+private:
+    juce::Label channelLabel;
+    GainMeter gainMeter;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
+};
+
+//==============================================================================
 /**
 */
 class DuganAutomixerAudioProcessorEditor  : public juce::AudioProcessorEditor, private juce::Timer
@@ -48,9 +66,11 @@ private:
     // access the processor object that created it.
     DuganAutomixerAudioProcessor& audioProcessor;
     juce::Label titleLabel;
-    juce::Label channelOneLabel;
-    juce::Label channelTwoLabel;
-    std::array<GainMeter, 2> gainMeters;
+
+    static constexpr int channelCount =
+        DuganAutomixerAudioProcessor::automixerChannelCount;
+
+    std::array<ChannelStrip, channelCount> channelStrips;
 
     void timerCallback() override;
 

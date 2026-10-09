@@ -67,31 +67,57 @@ void GainMeter::paint (juce::Graphics& g)
 }
 
 //==============================================================================
+ChannelStrip::ChannelStrip()
+{
+    channelLabel.setJustificationType (juce::Justification::centred);
+    channelLabel.setFont (juce::FontOptions (15.0f));
+
+    addAndMakeVisible (channelLabel);
+    addAndMakeVisible (gainMeter);
+}
+
+void ChannelStrip::setChannelNumber (int channelNumber)
+{
+    channelLabel.setText ("Channel " + juce::String (channelNumber),
+                          juce::dontSendNotification);
+}
+
+void ChannelStrip::setGain (float newGain)
+{
+    gainMeter.setGain (newGain);
+}
+
+void ChannelStrip::resized()
+{
+    auto area = getLocalBounds();
+    channelLabel.setBounds (area.removeFromTop (35).reduced (5));
+
+    // Leave room around the meter while keeping its scale on the left.
+    gainMeter.setBounds (
+        area.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
+}
+
+//==============================================================================
 DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAutomixerAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
 
-    // Set the text for the labels and their justification
+    // Set up the title and each repeated channel strip.
     titleLabel.setText("Dugan Automixer", juce::dontSendNotification);
-    channelOneLabel.setText("Channel 1", juce::dontSendNotification);
-    channelTwoLabel.setText("Channel 2", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
-    channelOneLabel.setJustificationType(juce::Justification::centred);
-    channelTwoLabel.setJustificationType(juce::Justification::centred);
-    // Add the labels to the editor and set their font sizes
     addAndMakeVisible(titleLabel);
-    addAndMakeVisible(channelOneLabel);
-    addAndMakeVisible(channelTwoLabel);
-
-    for (auto& meter : gainMeters)
-        addAndMakeVisible (meter);
 
     titleLabel.setFont(
         juce::FontOptions(20.0f, juce::Font::bold));
-    channelOneLabel.setFont(juce::FontOptions(15.0f));
-    channelTwoLabel.setFont(juce::FontOptions(15.0f));
+
+    for (int channel = 0; channel < channelCount; ++channel)
+    {
+        channelStrips[channel].setChannelNumber (channel + 1);
+        addAndMakeVisible (channelStrips[channel]);
+    }
+
     setSize (500, 320);
 
     // Start the timer to update the meter levels
@@ -107,8 +133,11 @@ DuganAutomixerAudioProcessorEditor::~DuganAutomixerAudioProcessorEditor()
 //==============================================================================
 void DuganAutomixerAudioProcessorEditor::timerCallback()
 {
-    gainMeters[0].setGain (audioProcessor.getMeterGain (0));
-    gainMeters[1].setGain (audioProcessor.getMeterGain (1));
+    for (int channel = 0; channel < channelCount; ++channel)
+    {
+        channelStrips[channel].setGain (
+            audioProcessor.getMeterGain (channel));
+    }
 }
 
 //==============================================================================
@@ -127,20 +156,13 @@ void DuganAutomixerAudioProcessorEditor::resized()
     auto area = getLocalBounds().reduced (20);
     titleLabel.setBounds (area.removeFromTop (50));
 
-    // Split the remaining area into halves for the two channels
-    auto leftArea =
-        area.removeFromLeft (area.getWidth() / 2);
-    // Set the bounds for the channel labels and meters
-    channelOneLabel.setBounds (
-        leftArea.removeFromTop (35).reduced (5));
+    // Divide the remaining width evenly between all channel strips.
+    for (int channel = 0; channel < channelCount; ++channel)
+    {
+        const auto remainingChannels = channelCount - channel;
+        const auto stripWidth = area.getWidth() / remainingChannels;
 
-    channelTwoLabel.setBounds (
-        area.removeFromTop (35).reduced (5));
-
-    // Each meter component includes the bar plus space for its scale labels.
-    gainMeters[0].setBounds (
-        leftArea.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
-
-    gainMeters[1].setBounds (
-        area.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
+        channelStrips[channel].setBounds (
+            area.removeFromLeft (stripWidth));
+    }
 }
