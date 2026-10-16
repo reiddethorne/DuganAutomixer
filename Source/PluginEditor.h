@@ -44,6 +44,8 @@ public:
     void paint (juce::Graphics& g) override;
     void resized() override;
 
+    static constexpr int getScaleWidth() noexcept { return scaleWidth; }
+
 private:
     static constexpr int scaleWidth = 40;
     GainMeter gainMeter;

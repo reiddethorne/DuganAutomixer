@@ -11,16 +11,16 @@
 
 namespace
 {
-constexpr auto backgroundColour = 0xff18191b;
+constexpr auto backgroundColour = 0xff222428;
 constexpr auto borderColour     = 0xff42464a;
 constexpr auto meterColour      = 0xff54c878;
 constexpr auto primaryText      = 0xfff0f1f2;
 constexpr auto secondaryText    = 0xff92979d;
 
 constexpr float meterFloorDb = -60.0f;
-constexpr float meterHorizontalInset = 3.0f;
+constexpr float meterInset = 3.0f;
 constexpr int scaleLabelHeight = 14;
-constexpr float meterVerticalInset = scaleLabelHeight / 2.0f;
+constexpr float scaleVerticalInset = scaleLabelHeight / 2.0f;
 }
 
 //==============================================================================
@@ -44,16 +44,15 @@ void GainMeter::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (0xff101113));
 
-    const auto bounds = getLocalBounds().toFloat().reduced (
-        meterHorizontalInset, meterVerticalInset);
+    const auto bounds = getLocalBounds().toFloat().reduced (meterInset);
     const auto fill = bounds.withTop (bounds.getBottom()
                                       - bounds.getHeight() * gain);
 
     g.setColour (juce::Colour (meterColour));
-    g.fillRoundedRectangle (fill, 2.0f);
+    g.fillRect (fill);
 
     g.setColour (juce::Colour (borderColour));
-    g.drawRoundedRectangle (bounds, 2.0f, 1.0f);
+    g.drawRect (bounds, 1.0f);
 }
 
 //==============================================================================
@@ -73,7 +72,7 @@ void GainMeterBackground::paint (juce::Graphics& g)
     auto meterBounds = getLocalBounds();
     const auto scaleBounds = meterBounds.removeFromLeft (scaleWidth);
     const auto meterArea = meterBounds.toFloat().reduced (
-        0.0f, meterVerticalInset);
+        0.0f, scaleVerticalInset);
 
     g.setFont (juce::FontOptions (10.0f));
 
@@ -106,6 +105,7 @@ void GainMeterBackground::resized()
 {
     auto meterBounds = getLocalBounds();
     meterBounds.removeFromLeft (scaleWidth);
+    meterBounds.reduce (0, juce::roundToInt (scaleVerticalInset - meterInset));
     gainMeter.setBounds (meterBounds);
 }
 
@@ -154,8 +154,10 @@ void ChannelStrip::resized()
     gainValueLabel.setBounds (area.removeFromTop (24));
     area.removeFromTop (6);
 
-    gainMeterBackground.setBounds (
-        area.reduced (0, 8).withSizeKeepingCentre (92, area.getHeight() - 16));
+    auto meterBounds = area.reduced (0, 8).withSizeKeepingCentre (
+        92, area.getHeight() - 16);
+    meterBounds.translate (-GainMeterBackground::getScaleWidth() / 2, 0);
+    gainMeterBackground.setBounds (meterBounds);
 }
 
 //==============================================================================
