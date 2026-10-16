@@ -13,12 +13,13 @@
 #include <array>
 
 //==============================================================================
-// A self-contained gain meter. Each instance stores and draws one channel's
-// current automixer gain, which makes it easy to add more meters later.
+// Draws only the animated portion of one channel's gain meter. The component
+// is opaque so repainting it never requires JUCE to redraw the static artwork
+// behind it.
 class GainMeter : public juce::Component
 {
 public:
-    GainMeter() = default;
+    GainMeter();
     ~GainMeter() override = default;
 
     void setGain (float newGain);
@@ -28,6 +29,26 @@ private:
     float gain = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GainMeter)
+};
+
+//==============================================================================
+// Owns the static meter scale and the animated meter layered on top of it.
+// The scale is buffered because it changes only when this component is resized.
+class GainMeterBackground : public juce::Component
+{
+public:
+    GainMeterBackground();
+    ~GainMeterBackground() override = default;
+
+    void setGain (float newGain);
+    void paint (juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    static constexpr int scaleWidth = 40;
+    GainMeter gainMeter;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GainMeterBackground)
 };
 
 //==============================================================================
@@ -43,7 +64,7 @@ public:
 
 private:
     juce::Label channelLabel;
-    GainMeter gainMeter;
+    GainMeterBackground gainMeterBackground;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };

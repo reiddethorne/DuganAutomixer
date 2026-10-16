@@ -10,24 +10,36 @@
 #include "PluginEditor.h"
 
 //==============================================================================
+GainMeter::GainMeter()
+{
+    setOpaque (true);
+}
+
 void GainMeter::setGain (float newGain)
 {
-    gain = juce::jlimit (0.0f, 1.0f, newGain);
+    const auto clampedGain = juce::jlimit (0.0f, 1.0f, newGain);
+
+    if (clampedGain == gain)
+        return;
+
+    gain = clampedGain;
     repaint();
 }
 
 void GainMeter::paint (juce::Graphics& g)
 {
-    // Keep some space on the left side of the component for the scale.
-    auto meterBounds = getLocalBounds();
-    auto scaleBounds = meterBounds.removeFromLeft (40);
-    const auto meterBoundsFloat = meterBounds.toFloat();
+    const auto meterBounds = getLocalBounds().toFloat();
 
+    // setOpaque (true) requires every pixel to be painted without transparency.
+    // Paint the editor colour first, then preserve the previous translucent-black
+    // meter-well appearance on top of it.
+    g.fillAll (getLookAndFeel().findColour (
+        juce::ResizableWindow::backgroundColourId));
     g.setColour (juce::Colours::black.withAlpha (0.4f));
-    g.fillRect (meterBoundsFloat);
+    g.fillRect (meterBounds);
 
     // Reduce the fill from the top so that it grows upward from the bottom.
-    auto fillBounds = meterBoundsFloat;
+    auto fillBounds = meterBounds;
     const auto fillHeight = fillBounds.getHeight() * gain;
     fillBounds.setY (fillBounds.getBottom() - fillHeight);
     fillBounds.setHeight (fillHeight);
@@ -36,7 +48,28 @@ void GainMeter::paint (juce::Graphics& g)
     g.fillRect (fillBounds);
 
     g.setColour (juce::Colours::grey);
-    g.drawRect (meterBoundsFloat);
+    g.drawRect (meterBounds);
+}
+
+//==============================================================================
+GainMeterBackground::GainMeterBackground()
+{
+    setBufferedToImage (true);
+    addAndMakeVisible (gainMeter);
+}
+
+void GainMeterBackground::setGain (float newGain)
+{
+    gainMeter.setGain (newGain);
+}
+
+void GainMeterBackground::paint (juce::Graphics& g)
+{
+    auto meterBounds = getLocalBounds();
+    const auto scaleBounds = meterBounds.removeFromLeft (scaleWidth);
+    const auto meterBoundsFloat = meterBounds.toFloat();
+
+    g.setColour (juce::Colours::white);
 
     // Convert each dB value to linear gain so its mark matches the meter fill.
     const auto drawScaleMark = [&] (float linearGain, const char* label)
@@ -66,6 +99,13 @@ void GainMeter::paint (juce::Graphics& g)
     drawScaleMark (0.0f, "-inf");
 }
 
+void GainMeterBackground::resized()
+{
+    auto meterBounds = getLocalBounds();
+    meterBounds.removeFromLeft (scaleWidth);
+    gainMeter.setBounds (meterBounds);
+}
+
 //==============================================================================
 ChannelStrip::ChannelStrip()
 {
@@ -73,7 +113,7 @@ ChannelStrip::ChannelStrip()
     channelLabel.setFont (juce::FontOptions (15.0f));
 
     addAndMakeVisible (channelLabel);
-    addAndMakeVisible (gainMeter);
+    addAndMakeVisible (gainMeterBackground);
 }
 
 void ChannelStrip::setChannelNumber (int channelNumber)
@@ -84,7 +124,7 @@ void ChannelStrip::setChannelNumber (int channelNumber)
 
 void ChannelStrip::setGain (float newGain)
 {
-    gainMeter.setGain (newGain);
+    gainMeterBackground.setGain (newGain);
 }
 
 void ChannelStrip::resized()
@@ -93,7 +133,7 @@ void ChannelStrip::resized()
     channelLabel.setBounds (area.removeFromTop (35).reduced (5));
 
     // Leave room around the meter while keeping its scale on the left.
-    gainMeter.setBounds (
+    gainMeterBackground.setBounds (
         area.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
 }
 
