@@ -18,7 +18,9 @@ constexpr auto primaryText      = 0xfff0f1f2;
 constexpr auto secondaryText    = 0xff92979d;
 
 constexpr float meterFloorDb = -60.0f;
-constexpr float meterInset = 3.0f;
+constexpr float meterHorizontalInset = 3.0f;
+constexpr int scaleLabelHeight = 14;
+constexpr float meterVerticalInset = scaleLabelHeight / 2.0f;
 }
 
 //==============================================================================
@@ -42,7 +44,8 @@ void GainMeter::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (0xff101113));
 
-    const auto bounds = getLocalBounds().toFloat().reduced (meterInset);
+    const auto bounds = getLocalBounds().toFloat().reduced (
+        meterHorizontalInset, meterVerticalInset);
     const auto fill = bounds.withTop (bounds.getBottom()
                                       - bounds.getHeight() * gain);
 
@@ -69,7 +72,8 @@ void GainMeterBackground::paint (juce::Graphics& g)
 {
     auto meterBounds = getLocalBounds();
     const auto scaleBounds = meterBounds.removeFromLeft (scaleWidth);
-    const auto meterArea = meterBounds.toFloat().reduced (0.0f, meterInset);
+    const auto meterArea = meterBounds.toFloat().reduced (
+        0.0f, meterVerticalInset);
 
     g.setFont (juce::FontOptions (10.0f));
 
@@ -86,9 +90,8 @@ void GainMeterBackground::paint (juce::Graphics& g)
 
         g.setColour (juce::Colour (secondaryText));
         g.drawText (label, scaleBounds.getX(),
-                    juce::jlimit (0, getHeight() - 14,
-                                  juce::roundToInt (y) - 7),
-                    scaleBounds.getWidth() - 9, 14,
+                    juce::roundToInt (y) - scaleLabelHeight / 2,
+                    scaleBounds.getWidth() - 9, scaleLabelHeight,
                     juce::Justification::centredRight);
     };
 
