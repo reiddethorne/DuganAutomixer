@@ -64,6 +64,7 @@ public:
 
 private:
     juce::Label channelLabel;
+    juce::Label gainValueLabel;
     GainMeterBackground gainMeterBackground;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
@@ -86,7 +87,6 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     DuganAutomixerAudioProcessor& audioProcessor;
-    juce::Label titleLabel;
 
     static constexpr int channelCount =
         DuganAutomixerAudioProcessor::automixerChannelCount;

@@ -9,6 +9,18 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+constexpr auto backgroundColour = 0xff18191b;
+constexpr auto borderColour     = 0xff42464a;
+constexpr auto meterColour      = 0xff54c878;
+constexpr auto primaryText      = 0xfff0f1f2;
+constexpr auto secondaryText    = 0xff92979d;
+
+constexpr float meterFloorDb = -60.0f;
+constexpr float meterInset = 3.0f;
+}
+
 //==============================================================================
 GainMeter::GainMeter()
 {
@@ -28,27 +40,17 @@ void GainMeter::setGain (float newGain)
 
 void GainMeter::paint (juce::Graphics& g)
 {
-    const auto meterBounds = getLocalBounds().toFloat();
+    g.fillAll (juce::Colour (0xff101113));
 
-    // setOpaque (true) requires every pixel to be painted without transparency.
-    // Paint the editor colour first, then preserve the previous translucent-black
-    // meter-well appearance on top of it.
-    g.fillAll (getLookAndFeel().findColour (
-        juce::ResizableWindow::backgroundColourId));
-    g.setColour (juce::Colours::black.withAlpha (0.4f));
-    g.fillRect (meterBounds);
+    const auto bounds = getLocalBounds().toFloat().reduced (meterInset);
+    const auto fill = bounds.withTop (bounds.getBottom()
+                                      - bounds.getHeight() * gain);
 
-    // Reduce the fill from the top so that it grows upward from the bottom.
-    auto fillBounds = meterBounds;
-    const auto fillHeight = fillBounds.getHeight() * gain;
-    fillBounds.setY (fillBounds.getBottom() - fillHeight);
-    fillBounds.setHeight (fillHeight);
+    g.setColour (juce::Colour (meterColour));
+    g.fillRoundedRectangle (fill, 2.0f);
 
-    g.setColour (juce::Colours::limegreen);
-    g.fillRect (fillBounds);
-
-    g.setColour (juce::Colours::grey);
-    g.drawRect (meterBounds);
+    g.setColour (juce::Colour (borderColour));
+    g.drawRoundedRectangle (bounds, 2.0f, 1.0f);
 }
 
 //==============================================================================
@@ -67,28 +69,26 @@ void GainMeterBackground::paint (juce::Graphics& g)
 {
     auto meterBounds = getLocalBounds();
     const auto scaleBounds = meterBounds.removeFromLeft (scaleWidth);
-    const auto meterBoundsFloat = meterBounds.toFloat();
+    const auto meterArea = meterBounds.toFloat().reduced (0.0f, meterInset);
 
-    g.setColour (juce::Colours::white);
+    g.setFont (juce::FontOptions (10.0f));
 
-    // Convert each dB value to linear gain so its mark matches the meter fill.
+    // The bar is linear gain, so labels use their equivalent amplitude values.
     const auto drawScaleMark = [&] (float linearGain, const char* label)
     {
-        const auto markY = meterBoundsFloat.getBottom()
-                           - meterBoundsFloat.getHeight() * linearGain;
-        const auto labelY = juce::jlimit (0,
-                                         getHeight() - 16,
-                                         juce::roundToInt (markY) - 8);
+        const auto y = meterArea.getBottom()
+                       - meterArea.getHeight() * linearGain;
 
-        g.drawHorizontalLine (juce::roundToInt (markY),
-                              meterBoundsFloat.getX() - 5.0f,
-                              meterBoundsFloat.getX());
+        g.setColour (juce::Colour (borderColour));
+        g.drawHorizontalLine (juce::roundToInt (y),
+                              meterArea.getX() - 5.0f,
+                              meterArea.getX() - 1.0f);
 
-        g.drawText (label,
-                    scaleBounds.getX(),
-                    labelY,
-                    scaleBounds.getWidth() - 8,
-                    16,
+        g.setColour (juce::Colour (secondaryText));
+        g.drawText (label, scaleBounds.getX(),
+                    juce::jlimit (0, getHeight() - 14,
+                                  juce::roundToInt (y) - 7),
+                    scaleBounds.getWidth() - 9, 14,
                     juce::Justification::centredRight);
     };
 
@@ -110,31 +110,49 @@ void GainMeterBackground::resized()
 ChannelStrip::ChannelStrip()
 {
     channelLabel.setJustificationType (juce::Justification::centred);
-    channelLabel.setFont (juce::FontOptions (15.0f));
+    channelLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    channelLabel.setColour (juce::Label::textColourId,
+                            juce::Colour (primaryText));
+
+    gainValueLabel.setJustificationType (juce::Justification::centred);
+    gainValueLabel.setFont (juce::FontOptions (12.0f));
+    gainValueLabel.setColour (juce::Label::textColourId,
+                              juce::Colour (secondaryText));
+    gainValueLabel.setText ("GAIN  -inf dB", juce::dontSendNotification);
 
     addAndMakeVisible (channelLabel);
+    addAndMakeVisible (gainValueLabel);
     addAndMakeVisible (gainMeterBackground);
 }
 
 void ChannelStrip::setChannelNumber (int channelNumber)
 {
-    channelLabel.setText ("Channel " + juce::String (channelNumber),
+    channelLabel.setText ("INPUT " + juce::String (channelNumber),
                           juce::dontSendNotification);
 }
 
 void ChannelStrip::setGain (float newGain)
 {
     gainMeterBackground.setGain (newGain);
+
+    const auto gainDb = juce::Decibels::gainToDecibels (
+        juce::jlimit (0.0f, 1.0f, newGain), meterFloorDb);
+    const auto value = gainDb <= meterFloorDb + 0.1f
+                           ? juce::String ("-inf")
+                           : juce::String (gainDb, 1);
+    gainValueLabel.setText ("GAIN  " + value + " dB",
+                            juce::dontSendNotification);
 }
 
 void ChannelStrip::resized()
 {
-    auto area = getLocalBounds();
-    channelLabel.setBounds (area.removeFromTop (35).reduced (5));
+    auto area = getLocalBounds().reduced (12, 10);
+    channelLabel.setBounds (area.removeFromTop (34));
+    gainValueLabel.setBounds (area.removeFromTop (24));
+    area.removeFromTop (6);
 
-    // Leave room around the meter while keeping its scale on the left.
     gainMeterBackground.setBounds (
-        area.withTrimmedLeft (20).withTrimmedRight (60).reduced (0, 10));
+        area.reduced (0, 8).withSizeKeepingCentre (92, area.getHeight() - 16));
 }
 
 //==============================================================================
@@ -143,14 +161,6 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-
-    // Set up the title and each repeated channel strip.
-    titleLabel.setText("Dugan Automixer", juce::dontSendNotification);
-    titleLabel.setJustificationType(juce::Justification::centred);
-    addAndMakeVisible(titleLabel);
-
-    titleLabel.setFont(
-        juce::FontOptions(20.0f, juce::Font::bold));
 
     for (int channel = 0; channel < channelCount; ++channel)
     {
@@ -183,26 +193,19 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
 //==============================================================================
 void DuganAutomixerAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    // The editor is opaque, so every background pixel must be painted.
+    g.fillAll (juce::Colour (backgroundColour));
 }
 
 void DuganAutomixerAudioProcessorEditor::resized()
 {
-    // This is generally where you'll want to lay out the positions of any
-    // subcomponents in your editor..
+    // Divide the available area evenly between channels.
+    auto area = getLocalBounds().reduced (18);
 
-    // Get the bounds of the editor and reduce it by 20 pixels on all sides and 50 pixels from the top for the title
-    auto area = getLocalBounds().reduced (20);
-    titleLabel.setBounds (area.removeFromTop (50));
-
-    // Divide the remaining width evenly between all channel strips.
     for (int channel = 0; channel < channelCount; ++channel)
     {
-        const auto remainingChannels = channelCount - channel;
-        const auto stripWidth = area.getWidth() / remainingChannels;
-
+        const auto channelsLeft = channelCount - channel;
         channelStrips[channel].setBounds (
-            area.removeFromLeft (stripWidth));
+            area.removeFromLeft (area.getWidth() / channelsLeft).reduced (6, 0));
     }
 }
