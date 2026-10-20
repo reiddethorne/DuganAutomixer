@@ -51,8 +51,7 @@ void GainMeter::paint (juce::Graphics& g)
     g.setColour (juce::Colour (meterColour));
     g.fillRect (fill);
 
-    g.setColour (juce::Colour (borderColour));
-    g.drawRect (bounds, 1.0f);
+
 }
 
 //==============================================================================
