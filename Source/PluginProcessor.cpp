@@ -194,6 +194,8 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         // Note: Using relaxed memory order here is acceptable for this use case, as we are only reading the value in the GUI thread and writing it in the audio thread. The GUI thread will eventually see the updated value, and we don't require strict synchronization.
     }
 
+    if (isAutomixerBypassed())
+    return;
 
     // Apply the target gain to the samples in the buffer for each channel
     for (int channel = 0; channel < totalNumInputChannels; ++channel)

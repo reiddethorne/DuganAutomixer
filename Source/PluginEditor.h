@@ -94,6 +94,7 @@ private:
         DuganAutomixerAudioProcessor::automixerChannelCount;
 
     std::array<ChannelStrip, channelCount> channelStrips;
+    juce::ToggleButton bypassButton { "Bypass" };
 
     void timerCallback() override;
 

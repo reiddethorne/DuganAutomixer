@@ -177,6 +177,15 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
 
     // Start the timer to update the meter levels
     startTimerHz(30); // Update at 30 Hz
+
+    bypassButton.setToggleState (audioProcessor.isAutomixerBypassed(), juce::dontSendNotification);
+    bypassButton.onClick = [this]
+    {
+        audioProcessor.setAutomixerBypassed (
+        bypassButton.getToggleState());
+    };
+
+    addAndMakeVisible (bypassButton);
 }
 
 DuganAutomixerAudioProcessorEditor::~DuganAutomixerAudioProcessorEditor()
@@ -206,6 +215,10 @@ void DuganAutomixerAudioProcessorEditor::resized()
 {
     // Divide the available area evenly between channels.
     auto area = getLocalBounds().reduced (18);
+    
+    bypassButton.setBounds (area.removeFromRight (90));
+
+    area.removeFromTop (6);
 
     for (int channel = 0; channel < channelCount; ++channel)
     {

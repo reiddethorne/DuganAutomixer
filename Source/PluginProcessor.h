@@ -62,10 +62,21 @@ public:
     // Custom method to get the current gain for a specific channel for the meter display
     float getMeterGain (int channel) const noexcept;
 
+    void setAutomixerBypassed (bool shouldBypass) noexcept
+    {
+        bypassed.store (shouldBypass, std::memory_order_relaxed);
+    }
+
+    bool isAutomixerBypassed() const noexcept
+    {
+        return bypassed.load (std::memory_order_relaxed);
+    }
+
 private:
     //==============================================================================
     std::array<std::atomic<float>, automixerChannelCount> meterGains
     { 0.0f, 0.0f }; // Atomic variables to hold the current gain for each channel
+    std::atomic<bool> bypassed { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessor)
 };
