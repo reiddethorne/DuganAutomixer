@@ -74,9 +74,16 @@ public:
 
 private:
     //==============================================================================
-    std::array<std::atomic<float>, automixerChannelCount> meterGains
-    { 0.0f, 0.0f }; // Atomic variables to hold the current gain for each channel
+    std::array<std::atomic<float>, automixerChannelCount> meterGains { 0.0f, 0.0f }; // Atomic variables to hold the current gain for each channel
     std::atomic<bool> bypassed { false };
+    std::array<float, automixerChannelCount> powerEnvelopes {};
+    std::array<float, automixerChannelCount> smoothedGains {};
+
+    float attackCoefficient = 0.0f;
+    float releaseCoefficient = 0.0f;
+    float gainCoefficient = 0.0f;
+
+    juce::SmoothedValue<float> bypassMix {1.0f};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessor)
 };

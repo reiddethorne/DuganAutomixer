@@ -98,6 +98,23 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+
+    // Calculate the smoothing coefficient in milliseconds for gain smoothing
+    const auto coefficientForTime = [sampleRate] (float milliseconds)
+    {
+        const auto seconds = milliseconds * 0.001f;
+        return std::exp ( -1.0 / (seconds * sampleRate));
+    } ;
+
+    attackCoefficient = coefficientForTime (10.0f);  // 10 ms attack time
+    releaseCoefficient = coefficientForTime (100.0f); // 100 ms release time
+    gainCoefficient = coefficientForTime (30.0f); // 30 ms gain time
+
+    powerEnvelopes.fill (0.0f);
+    smoothedGains.fill (std::sqrt (1.0f / static_cast<float> (automixerChannelCount))); // Start with equal gain for all channels  
+    
+    bypassMix.reset (sampleRate, 0.01); // 10 ms smoothing time for bypass button
+    bypassMix.setCurrentAndTargetValue ( isAutomixerBypassed() ? 0.0f : 1.0f ); 
 }
 
 void DuganAutomixerAudioProcessor::releaseResources()
@@ -155,57 +172,55 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
 
+    constexpr float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
 
-    std::array<float, automixerChannelCount> channelPowers {};
-    // Measure the power of each channel without modifying the audio data
-    for (int channel = 0; channel < totalNumInputChannels; ++channel) 
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        float sumOfSquares = 0.0f;
-        for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
+    bypassMix.setTargetValue (isAutomixerBypassed() ? 0.0f : 1.0f); // Set the target value for the bypassMix based on the bypass state
+    
+    for(int sample = 0; sample < numSamples; ++sample){
+
+        float totalPower = automixerChannelCount * powerFloor;
+
+        for (int channel = 0; channel < totalNumInputChannels; ++channel) 
         {
-            float sample = channelData[sampleIndex];
-            sumOfSquares += sample * sample;
+            // Measure the power of each channel without modifying the audio data
+            auto* channelData = buffer.getWritePointer (channel);
+            float currentSample = channelData[sample];
+
+            //measure power as square of the sample value
+            const float instantaneousPower = currentSample * currentSample; 
+
+            float coefficient = (instantaneousPower > powerEnvelopes[channel]) ? attackCoefficient : releaseCoefficient;
+            powerEnvelopes[channel] = coefficient * powerEnvelopes[channel] + (1.0f - coefficient) * instantaneousPower;
+
+            totalPower += powerEnvelopes[channel];
         }
-        if (numSamples > 0)
+
+        // Advance bypassMix to get the wet value for this sample
+        const auto wet = bypassMix.getNextValue();
+        
+        for (int channel = 0; channel < automixerChannelCount; ++channel)
         {
-            channelPowers[channel] = sumOfSquares / numSamples;
+            auto* channelData = buffer.getWritePointer (channel);
+
+            const float targetGain = std::sqrt(
+                (powerEnvelopes[channel] + powerFloor) 
+                / totalPower); 
+
+            smoothedGains[channel] = 
+                gainCoefficient * smoothedGains[channel]
+                + (1.0f - gainCoefficient) * targetGain;
+
+            const auto effectiveGain = 1.0f + wet * (smoothedGains[channel] - 1.0f);
+
+            channelData[sample] *= effectiveGain;
         }
     }
-    constexpr float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
-    const float totalPower = channelPowers[0] + channelPowers[1]
-                             + automixerChannelCount * powerFloor;
-    std::array<float, automixerChannelCount> targetGains {};
-
 
     for (int channel = 0; channel < automixerChannelCount; ++channel)
     {
-        // Calculate the target gain for the channel based on its power relative to the total power
-        targetGains[channel] =
-        std::sqrt(
-        (channelPowers[channel] + powerFloor)
-        / totalPower
-        );
-
-        // Store the target gain in the atomic variable for the meter display
-        meterGains[channel].store (
-        targetGains[channel],
-        std::memory_order_relaxed);
-        // Note: Using relaxed memory order here is acceptable for this use case, as we are only reading the value in the GUI thread and writing it in the audio thread. The GUI thread will eventually see the updated value, and we don't require strict synchronization.
-    }
-
-    if (isAutomixerBypassed())
-    return;
-
-    // Apply the target gain to the samples in the buffer for each channel
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        const float gain = targetGains[channel];
-        for (int sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
-        {
-            channelData[sampleIndex] *= gain;
-        }
+        // Update the atomic meter gain for each channel to be used in the GUI
+        meterGains[channel].store (smoothedGains[channel], std::memory_order_relaxed);
+        // Relaxed memory order is used here because we don't need strict ordering for the meter display, and it can improve performance
     }
 }
 
