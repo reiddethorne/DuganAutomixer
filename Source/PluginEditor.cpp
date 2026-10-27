@@ -172,7 +172,7 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
         addAndMakeVisible (channelStrips[channel]);
     }
 
-    setSize (500, 320);
+    setSize (700, 320);
 
     // Start the timer to update the meter levels
     startTimerHz(30); // Update at 30 Hz

@@ -18,11 +18,12 @@
 class DuganAutomixerAudioProcessor  : public juce::AudioProcessor
 {
 public:
-    static constexpr int automixerChannelCount = 2;
+    static constexpr int automixerChannelCount = 4; // Number of channels for the automixer
 
     //==============================================================================
     DuganAutomixerAudioProcessor();
     ~DuganAutomixerAudioProcessor() override;
+    
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -74,7 +75,7 @@ public:
 
 private:
     //==============================================================================
-    std::array<std::atomic<float>, automixerChannelCount> meterGains { 0.0f, 0.0f }; // Atomic variables to hold the current gain for each channel
+    std::array<std::atomic<float>, automixerChannelCount> meterGains {}; // Atomic variables to hold the current gain for each channel
     std::atomic<bool> bypassed { false };
     std::array<float, automixerChannelCount> powerEnvelopes {};
     std::array<float, automixerChannelCount> smoothedGains {};

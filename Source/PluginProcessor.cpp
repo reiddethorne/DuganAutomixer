@@ -18,13 +18,15 @@ DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
                       #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                       .withInput  ("Input",  juce::AudioChannelSet::discreteChannels(automixerChannelCount), true)
                       #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                       .withOutput ("Output", juce::AudioChannelSet::discreteChannels(automixerChannelCount), true)
                      #endif
                        )
 #endif
 {
+    for (auto& meterGain : meterGains)
+        meterGain.store (0.0f, std::memory_order_relaxed);
 }
 
 DuganAutomixerAudioProcessor::~DuganAutomixerAudioProcessor()
@@ -131,20 +133,12 @@ bool DuganAutomixerAudioProcessor::isBusesLayoutSupported (const BusesLayout& la
     return true;
   #else
     // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
+   
+    const auto layout = juce::AudioChannelSet::discreteChannels(automixerChannelCount);
 
-    // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-   #endif
+    return layouts.getMainInputChannelSet() == layout
+        && layouts.getMainOutputChannelSet() == layout;
 
-    return true;
   #endif
 }
 #endif
@@ -172,7 +166,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
 
-    constexpr float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
+    const float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
 
     bypassMix.setTargetValue (isAutomixerBypassed() ? 0.0f : 1.0f); // Set the target value for the bypassMix based on the bypass state
     
