@@ -104,8 +104,9 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
     // Calculate the smoothing coefficient in milliseconds for gain smoothing
     const auto coefficientForTime = [sampleRate] (float milliseconds)
     {
-        const auto seconds = milliseconds * 0.001f;
-        return std::exp ( -1.0 / (seconds * sampleRate));
+        const auto seconds = milliseconds * 0.001f; //convert milliseconds to seconds
+        return std::exp ( -1.0  // e^(-1/t) formula for smoothing coefficient, exponential decay
+            / (seconds * sampleRate)); // calculate number of samples in given time
     } ;
 
     attackCoefficient = coefficientForTime (10.0f);  // 10 ms attack time
@@ -180,7 +181,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
             auto* channelData = buffer.getWritePointer (channel);
             float currentSample = channelData[sample];
 
-            //measure power as square of the sample value
+            // Measure power as the square of the sample value
             const float instantaneousPower = currentSample * currentSample; 
 
             float coefficient = (instantaneousPower > powerEnvelopes[channel]) ? attackCoefficient : releaseCoefficient;
@@ -196,16 +197,17 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         {
             auto* channelData = buffer.getWritePointer (channel);
 
-            const float targetGain = std::sqrt(
-                (powerEnvelopes[channel] + powerFloor) 
-                / totalPower); 
+            // Calculate the target gain for each channel based on its share of the total power
+            const float targetGain = std::sqrt( // power = gain^2, so gain = sqrt(power)
+                (powerEnvelopes[channel] + powerFloor) / totalPower);  // Calculate the share of total power
 
-            smoothedGains[channel] = 
+            // Smooth gain for each channel using gainCoefficient
+            smoothedGains[channel] =
                 gainCoefficient * smoothedGains[channel]
                 + (1.0f - gainCoefficient) * targetGain;
-
             const auto effectiveGain = 1.0f + wet * (smoothedGains[channel] - 1.0f);
 
+            // Apply the effective gain to the audio sample
             channelData[sample] *= effectiveGain;
         }
     }
@@ -214,7 +216,8 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     {
         // Update the atomic meter gain for each channel to be used in the GUI
         meterGains[channel].store (smoothedGains[channel], std::memory_order_relaxed);
-        // Relaxed memory order is used here because we don't need strict ordering for the meter display, and it can improve performance
+        // Relaxed memory order is where the atomic value is still safe, but there is no ordering guarantee for other memory operations.
+        // It is used here because we don't need strict ordering for the meter display, and it can improve performance.
     }
 }
 

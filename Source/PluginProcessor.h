@@ -23,7 +23,6 @@ public:
     //==============================================================================
     DuganAutomixerAudioProcessor();
     ~DuganAutomixerAudioProcessor() override;
-    
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
