@@ -72,12 +72,26 @@ public:
         return bypassed.load (std::memory_order_relaxed);
     }
 
+    void setChannelMuted (int channel, bool shouldBeMuted) noexcept
+    {
+        if (juce::isPositiveAndBelow (channel, automixerChannelCount))
+            channelMuted[channel].store (shouldBeMuted, std::memory_order_relaxed);
+    }
+
+    bool isChannelMuted (int channel) const noexcept
+    {
+        return juce::isPositiveAndBelow (channel, automixerChannelCount)
+            && channelMuted[channel].load (std::memory_order_relaxed);
+    }
+
 private:
     //==============================================================================
     std::array<std::atomic<float>, automixerChannelCount> meterGains {}; // Atomic variables to hold the current gain for each channel
     std::atomic<bool> bypassed { false };
+    std::array<std::atomic<bool>, automixerChannelCount> channelMuted {};
     std::array<float, automixerChannelCount> powerEnvelopes {};
     std::array<float, automixerChannelCount> smoothedGains {};
+    std::array<juce::SmoothedValue<float>, automixerChannelCount> muteGains;
 
     float attackCoefficient = 0.0f;
     float releaseCoefficient = 0.0f;

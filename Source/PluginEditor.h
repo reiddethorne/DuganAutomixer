@@ -11,6 +11,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include <array>
+#include <functional>
 
 //==============================================================================
 // Draws only the animated portion of one channel's gain meter. The component
@@ -62,12 +63,16 @@ public:
 
     void setChannelNumber (int channelNumber);
     void setGain (float newGain);
+    void setMuted (bool shouldBeMuted);
     void resized() override;
+
+    std::function<void (bool)> onMuteChanged;
 
 private:
     juce::Label channelLabel;
     juce::Label gainValueLabel;
     GainMeterBackground gainMeterBackground;
+    juce::ToggleButton muteButton { "Mute" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelStrip)
 };

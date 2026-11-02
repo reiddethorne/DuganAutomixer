@@ -20,13 +20,16 @@ DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
                       #if ! JucePlugin_IsSynth
                        .withInput  ("Input",  juce::AudioChannelSet::discreteChannels(automixerChannelCount), true)
                       #endif
-                       .withOutput ("Output", juce::AudioChannelSet::discreteChannels(automixerChannelCount), true)
+                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        )
 #endif
 {
     for (auto& meterGain : meterGains)
         meterGain.store (0.0f, std::memory_order_relaxed);
+
+    for (auto& muted : channelMuted)
+        muted.store (false, std::memory_order_relaxed);
 }
 
 DuganAutomixerAudioProcessor::~DuganAutomixerAudioProcessor()
@@ -115,6 +118,13 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
 
     powerEnvelopes.fill (0.0f);
     smoothedGains.fill (std::sqrt (1.0f / static_cast<float> (automixerChannelCount))); // Start with equal gain for all channels  
+
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
+    {
+        muteGains[channel].reset (sampleRate, 0.01); // 10 ms mute fade
+        muteGains[channel].setCurrentAndTargetValue (
+            isChannelMuted (channel) ? 0.0f : 1.0f);
+    }
     
     bypassMix.reset (sampleRate, 0.01); // 10 ms smoothing time for bypass button
     bypassMix.setCurrentAndTargetValue ( isAutomixerBypassed() ? 0.0f : 1.0f ); 
@@ -135,10 +145,10 @@ bool DuganAutomixerAudioProcessor::isBusesLayoutSupported (const BusesLayout& la
   #else
     // This is the place where you check if the layout is supported.
    
-    const auto layout = juce::AudioChannelSet::discreteChannels(automixerChannelCount);
+    const auto inputLayout = juce::AudioChannelSet::discreteChannels (automixerChannelCount);
 
-    return layouts.getMainInputChannelSet() == layout
-        && layouts.getMainOutputChannelSet() == layout;
+    return layouts.getMainInputChannelSet() == inputLayout
+        && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 
   #endif
 }
@@ -150,6 +160,15 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
     const auto numSamples = buffer.getNumSamples();
+    auto* leftOutput = buffer.getWritePointer (0);
+    auto* rightOutput = buffer.getWritePointer (1);
+
+    std::array<bool, automixerChannelCount> muted {};
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
+    {
+        muted[channel] = isChannelMuted (channel);
+        muteGains[channel].setTargetValue (muted[channel] ? 0.0f : 1.0f);
+    }
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -177,8 +196,15 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 
         for (int channel = 0; channel < totalNumInputChannels; ++channel) 
         {
+            // A muted channel must not reduce the gains of the other channels.
+            if (muted[channel])
+            {
+                powerEnvelopes[channel] = 0.0f;
+                continue;
+            }
+
             // Measure the power of each channel without modifying the audio data
-            auto* channelData = buffer.getWritePointer (channel);
+            const auto* channelData = buffer.getReadPointer (channel);
             float currentSample = channelData[sample];
 
             // Measure power as the square of the sample value
@@ -193,9 +219,11 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         // Advance bypassMix to get the wet value for this sample
         const auto wet = bypassMix.getNextValue();
         
+        float mixedOutput = 0.0f;
+
         for (int channel = 0; channel < automixerChannelCount; ++channel)
         {
-            auto* channelData = buffer.getWritePointer (channel);
+            const auto* channelData = buffer.getReadPointer (channel);
 
             // Calculate the target gain for each channel based on its share of the total power
             const float targetGain = std::sqrt( // power = gain^2, so gain = sqrt(power)
@@ -206,16 +234,25 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
                 gainCoefficient * smoothedGains[channel]
                 + (1.0f - gainCoefficient) * targetGain;
             const auto effectiveGain = 1.0f + wet * (smoothedGains[channel] - 1.0f);
+            const auto muteGain = muteGains[channel].getNextValue();
 
-            // Apply the effective gain to the audio sample
-            channelData[sample] *= effectiveGain;
+            // Mute remains active when the automixer is bypassed. The smoothed
+            // mute gain prevents discontinuities when the button is toggled.
+            mixedOutput += channelData[sample] * effectiveGain * muteGain;
         }
+
+        // The automixer produces one mono mix, sent equally to both sides of
+        // the stereo output bus.
+        leftOutput[sample] = mixedOutput;
+        rightOutput[sample] = mixedOutput;
     }
 
     for (int channel = 0; channel < automixerChannelCount; ++channel)
     {
         // Update the atomic meter gain for each channel to be used in the GUI
-        meterGains[channel].store (smoothedGains[channel], std::memory_order_relaxed);
+        meterGains[channel].store (
+            smoothedGains[channel] * muteGains[channel].getCurrentValue(),
+            std::memory_order_relaxed);
         // Relaxed memory order is where the atomic value is still safe, but there is no ordering guarantee for other memory operations.
         // It is used here because we don't need strict ordering for the meter display, and it can improve performance.
     }

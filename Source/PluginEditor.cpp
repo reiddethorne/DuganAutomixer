@@ -125,6 +125,13 @@ ChannelStrip::ChannelStrip()
     addAndMakeVisible (channelLabel);
     addAndMakeVisible (gainValueLabel);
     addAndMakeVisible (gainMeterBackground);
+    addAndMakeVisible (muteButton);
+
+    muteButton.onClick = [this]
+    {
+        if (onMuteChanged)
+            onMuteChanged (muteButton.getToggleState());
+    };
 }
 
 void ChannelStrip::setChannelNumber (int channelNumber)
@@ -146,11 +153,17 @@ void ChannelStrip::setGain (float newGain)
                             juce::dontSendNotification);
 }
 
+void ChannelStrip::setMuted (bool shouldBeMuted)
+{
+    muteButton.setToggleState (shouldBeMuted, juce::dontSendNotification);
+}
+
 void ChannelStrip::resized()
 {
     auto area = getLocalBounds().reduced (12, 10);
     channelLabel.setBounds (area.removeFromTop (34));
     gainValueLabel.setBounds (area.removeFromTop (24));
+    muteButton.setBounds (area.removeFromBottom (26));
     area.removeFromTop (6);
 
     auto meterBounds = area.reduced (0, 8).withSizeKeepingCentre (
@@ -169,6 +182,11 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
     for (int channel = 0; channel < channelCount; ++channel)
     {
         channelStrips[channel].setChannelNumber (channel + 1);
+        channelStrips[channel].setMuted (audioProcessor.isChannelMuted (channel));
+        channelStrips[channel].onMuteChanged = [this, channel] (bool shouldBeMuted)
+        {
+            audioProcessor.setChannelMuted (channel, shouldBeMuted);
+        };
         addAndMakeVisible (channelStrips[channel]);
     }
 
