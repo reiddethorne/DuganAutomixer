@@ -117,7 +117,7 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
     gainCoefficient = coefficientForTime (30.0f); // 30 ms gain time
 
     powerEnvelopes.fill (0.0f);
-    smoothedGains.fill (std::sqrt (1.0f / static_cast<float> (automixerChannelCount))); // Start with equal gain for all channels  
+    smoothedGains.fill (1.0f / static_cast<float> (automixerChannelCount));
 
     for (int channel = 0; channel < automixerChannelCount; ++channel)
     {
@@ -225,9 +225,9 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         {
             const auto* channelData = buffer.getReadPointer (channel);
 
-            // Calculate the target gain for each channel based on its share of the total power
-            const float targetGain = std::sqrt( // power = gain^2, so gain = sqrt(power)
-                (powerEnvelopes[channel] + powerFloor) / totalPower);  // Calculate the share of total power
+            // Classic Dugan law: use the linear power share, not its square root.
+            const float targetGain =
+                (powerEnvelopes[channel] + powerFloor) / totalPower;
 
             // Smooth gain for each channel using gainCoefficient
             smoothedGains[channel] =
