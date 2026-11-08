@@ -347,15 +347,34 @@ juce::AudioProcessorEditor* DuganAutomixerAudioProcessor::createEditor()
 //==============================================================================
 void DuganAutomixerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    juce::XmlElement state ("DuganAutomixerState");
+    state.setAttribute ("outputGainDb", getOutputGainDb());
+    state.setAttribute ("automixOn", ! isAutomixerBypassed());
+
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
+        state.setAttribute ("mute" + juce::String (channel),
+                            isChannelMuted (channel));
+
+    copyXmlToBinary (state, destData);
 }
 
 void DuganAutomixerAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    const auto state = getXmlFromBinary (data, sizeInBytes);
+
+    if (state == nullptr || ! state->hasTagName ("DuganAutomixerState"))
+        return;
+
+    setOutputGainDb (static_cast<float> (
+        state->getDoubleAttribute ("outputGainDb", 0.0)));
+    setAutomixerBypassed (
+        ! state->getBoolAttribute ("automixOn", true));
+
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
+        setChannelMuted (
+            channel,
+            state->getBoolAttribute (
+                "mute" + juce::String (channel), false));
 }
 
 //==============================================================================

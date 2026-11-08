@@ -333,7 +333,16 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
             audioProcessor.getMeterGain (channel));
         channelStrips[channel].setInputPeak (
             audioProcessor.getAndClearInputPeak (channel));
+        channelStrips[channel].setMuted (
+            audioProcessor.isChannelMuted (channel));
     }
+
+    bypassButton.setToggleState (
+        ! audioProcessor.isAutomixerBypassed(),
+        juce::dontSendNotification);
+    outputGainSlider.setValue (
+        audioProcessor.getOutputGainDb(),
+        juce::dontSendNotification);
 
     const auto peak = audioProcessor.getAndClearOutputPeak();
     outputPeakMeter.setLevel (peak);
