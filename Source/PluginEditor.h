@@ -54,6 +54,24 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GainMeterBackground)
 };
 
+// Input level meter with a dBFS scale.
+class InputMeterBackground : public juce::Component
+{
+public:
+    InputMeterBackground();
+    ~InputMeterBackground() override = default;
+
+    void setLevel (float newLevel);
+    void paint (juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    static constexpr int scaleWidth = 32;
+    GainMeter meter;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (InputMeterBackground)
+};
+
 //==============================================================================
 // Groups the label and gain meter belonging to one automixer channel.
 class ChannelStrip : public juce::Component
@@ -62,6 +80,7 @@ public:
     ChannelStrip();
 
     void setChannelNumber (int channelNumber);
+    void setInputPeak (float newPeak);
     void setGain (float newGain);
     void setMuted (bool shouldBeMuted);
     void resized() override;
@@ -70,7 +89,9 @@ public:
 
 private:
     juce::Label channelLabel;
+    juce::Label inputValueLabel;
     juce::Label gainValueLabel;
+    InputMeterBackground inputMeter;
     GainMeterBackground gainMeterBackground;
     juce::ToggleButton muteButton { "Mute" };
 
@@ -99,9 +120,9 @@ private:
         DuganAutomixerAudioProcessor::automixerChannelCount;
 
     std::array<ChannelStrip, channelCount> channelStrips;
-    juce::ToggleButton bypassButton { "Automix Off" };
+    juce::ToggleButton bypassButton { "Automix On" };
     juce::Label outputPeakLabel;
-    GainMeter outputPeakMeter;
+    InputMeterBackground outputPeakMeter;
 
     void timerCallback() override;
 

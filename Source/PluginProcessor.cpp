@@ -12,6 +12,19 @@
 #include <array>
 #include <cmath>
 
+namespace
+{
+void accumulatePeak (std::atomic<float>& destination, float peak) noexcept
+{
+    auto previousPeak = destination.load (std::memory_order_relaxed);
+    while (previousPeak < peak
+           && ! destination.compare_exchange_weak (
+               previousPeak, peak, std::memory_order_relaxed))
+    {
+    }
+}
+}
+
 //==============================================================================
 DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -27,6 +40,9 @@ DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
 {
     for (auto& meterGain : meterGains)
         meterGain.store (0.0f, std::memory_order_relaxed);
+
+    for (auto& inputPeak : inputPeaks)
+        inputPeak.store (0.0f, std::memory_order_relaxed);
 
     for (auto& muted : channelMuted)
         muted.store (false, std::memory_order_relaxed);
@@ -128,6 +144,8 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
     
     bypassMix.reset (sampleRate, 0.01); // 10 ms smoothing time for bypass button
     bypassMix.setCurrentAndTargetValue ( isAutomixerBypassed() ? 0.0f : 1.0f ); 
+    for (auto& inputPeak : inputPeaks)
+        inputPeak.store (0.0f, std::memory_order_relaxed);
     outputPeak.store (0.0f, std::memory_order_relaxed);
 }
 
@@ -190,6 +208,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     const float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
 
     bypassMix.setTargetValue (isAutomixerBypassed() ? 0.0f : 1.0f); // Set the target value for the bypassMix based on the bypass state
+    std::array<float, automixerChannelCount> blockInputPeaks {};
     float blockOutputPeak = 0.0f;
     
     for(int sample = 0; sample < numSamples; ++sample){
@@ -198,6 +217,11 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 
         for (int channel = 0; channel < totalNumInputChannels; ++channel) 
         {
+            const auto* channelData = buffer.getReadPointer (channel);
+            const float currentSample = channelData[sample];
+            blockInputPeaks[channel] = juce::jmax (
+                blockInputPeaks[channel], std::abs (currentSample));
+
             // A muted channel must not reduce the gains of the other channels.
             if (muted[channel])
             {
@@ -206,9 +230,6 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
             }
 
             // Measure the power of each channel without modifying the audio data
-            const auto* channelData = buffer.getReadPointer (channel);
-            float currentSample = channelData[sample];
-
             // Measure power as the square of the sample value
             const float instantaneousPower = currentSample * currentSample; 
 
@@ -250,19 +271,19 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         blockOutputPeak = juce::jmax (blockOutputPeak, std::abs (mixedOutput));
     }
 
-    // Keep the highest peak until the UI reads it.
-    auto previousPeak = outputPeak.load (std::memory_order_relaxed);
-    while (previousPeak < blockOutputPeak
-           && ! outputPeak.compare_exchange_weak (
-               previousPeak, blockOutputPeak, std::memory_order_relaxed))
-    {
-    }
+    // Keep the highest peaks until the UI reads them.
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
+        accumulatePeak (inputPeaks[channel], blockInputPeaks[channel]);
 
+    accumulatePeak (outputPeak, blockOutputPeak);
+
+    const auto wet = bypassMix.getCurrentValue();
     for (int channel = 0; channel < automixerChannelCount; ++channel)
     {
         // Update the atomic meter gain for each channel to be used in the GUI
         meterGains[channel].store (
-            smoothedGains[channel] * muteGains[channel].getCurrentValue(),
+            (1.0f + wet * (smoothedGains[channel] - 1.0f))
+                * muteGains[channel].getCurrentValue(),
             std::memory_order_relaxed);
         // Relaxed memory order is where the atomic value is still safe, but there is no ordering guarantee for other memory operations.
         // It is used here because we don't need strict ordering for the meter display, and it can improve performance.
@@ -283,6 +304,15 @@ float DuganAutomixerAudioProcessor::getMeterGain (
 float DuganAutomixerAudioProcessor::getAndClearOutputPeak() noexcept
 {
     return outputPeak.exchange (0.0f, std::memory_order_relaxed);
+}
+
+float DuganAutomixerAudioProcessor::getAndClearInputPeak (
+    int channel) noexcept
+{
+    if (! juce::isPositiveAndBelow (channel, automixerChannelCount))
+        return 0.0f;
+
+    return inputPeaks[channel].exchange (0.0f, std::memory_order_relaxed);
 }
 
 //==============================================================================

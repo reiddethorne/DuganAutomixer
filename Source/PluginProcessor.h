@@ -61,6 +61,7 @@ public:
     //==============================================================================
     // Custom method to get the current gain for a specific channel for the meter display
     float getMeterGain (int channel) const noexcept;
+    float getAndClearInputPeak (int channel) noexcept;
     float getAndClearOutputPeak() noexcept;
 
     void setAutomixerBypassed (bool shouldBypass) noexcept
@@ -88,6 +89,7 @@ public:
 private:
     //==============================================================================
     std::array<std::atomic<float>, automixerChannelCount> meterGains {}; // Atomic variables to hold the current gain for each channel
+    std::array<std::atomic<float>, automixerChannelCount> inputPeaks {};
     std::atomic<float> outputPeak { 0.0f };
     std::atomic<bool> bypassed { false };
     std::array<std::atomic<bool>, automixerChannelCount> channelMuted {};

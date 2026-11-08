@@ -21,6 +21,13 @@ constexpr float meterFloorDb = -60.0f;
 constexpr float meterInset = 3.0f;
 constexpr int scaleLabelHeight = 14;
 constexpr float scaleVerticalInset = scaleLabelHeight / 2.0f;
+
+float levelToMeterPosition (float level)
+{
+    const auto levelDb = juce::Decibels::gainToDecibels (level, meterFloorDb);
+    return juce::jlimit (0.0f, 1.0f,
+                         (levelDb - meterFloorDb) / -meterFloorDb);
+}
 }
 
 //==============================================================================
@@ -109,12 +116,72 @@ void GainMeterBackground::resized()
 }
 
 //==============================================================================
+InputMeterBackground::InputMeterBackground()
+{
+    setBufferedToImage (true);
+    addAndMakeVisible (meter);
+}
+
+void InputMeterBackground::setLevel (float newLevel)
+{
+    meter.setGain (levelToMeterPosition (newLevel));
+}
+
+void InputMeterBackground::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+    const auto scaleBounds = bounds.removeFromLeft (scaleWidth);
+    const auto meterArea = bounds.toFloat().reduced (0.0f,
+                                                     scaleVerticalInset);
+
+    g.setFont (juce::FontOptions (9.0f));
+
+    const auto drawMark = [&] (float decibels, const char* label)
+    {
+        const auto proportion = (decibels - meterFloorDb) / -meterFloorDb;
+        const auto y = meterArea.getBottom()
+                       - meterArea.getHeight() * proportion;
+
+        g.setColour (juce::Colour (borderColour));
+        g.drawHorizontalLine (juce::roundToInt (y),
+                              meterArea.getX() - 4.0f,
+                              meterArea.getX() - 1.0f);
+
+        g.setColour (juce::Colour (secondaryText));
+        g.drawText (label, scaleBounds.getX(),
+                    juce::roundToInt (y) - scaleLabelHeight / 2,
+                    scaleBounds.getWidth() - 7, scaleLabelHeight,
+                    juce::Justification::centredRight);
+    };
+
+    drawMark (0.0f, "0");
+    drawMark (-12.0f, "-12");
+    drawMark (-24.0f, "-24");
+    drawMark (-48.0f, "-48");
+    drawMark (-60.0f, "-60");
+}
+
+void InputMeterBackground::resized()
+{
+    auto bounds = getLocalBounds();
+    bounds.removeFromLeft (scaleWidth);
+    bounds.reduce (0, juce::roundToInt (scaleVerticalInset - meterInset));
+    meter.setBounds (bounds);
+}
+
+//==============================================================================
 ChannelStrip::ChannelStrip()
 {
     channelLabel.setJustificationType (juce::Justification::centred);
     channelLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
     channelLabel.setColour (juce::Label::textColourId,
                             juce::Colour (primaryText));
+
+    inputValueLabel.setJustificationType (juce::Justification::centred);
+    inputValueLabel.setFont (juce::FontOptions (11.0f));
+    inputValueLabel.setColour (juce::Label::textColourId,
+                               juce::Colour (secondaryText));
+    inputValueLabel.setText ("IN  -inf dBFS", juce::dontSendNotification);
 
     gainValueLabel.setJustificationType (juce::Justification::centred);
     gainValueLabel.setFont (juce::FontOptions (12.0f));
@@ -123,7 +190,9 @@ ChannelStrip::ChannelStrip()
     gainValueLabel.setText ("GAIN  -inf dB", juce::dontSendNotification);
 
     addAndMakeVisible (channelLabel);
+    addAndMakeVisible (inputValueLabel);
     addAndMakeVisible (gainValueLabel);
+    addAndMakeVisible (inputMeter);
     addAndMakeVisible (gainMeterBackground);
     addAndMakeVisible (muteButton);
 
@@ -153,6 +222,18 @@ void ChannelStrip::setGain (float newGain)
                             juce::dontSendNotification);
 }
 
+void ChannelStrip::setInputPeak (float newPeak)
+{
+    inputMeter.setLevel (newPeak);
+
+    const auto peakDb = juce::Decibels::gainToDecibels (newPeak, meterFloorDb);
+    const auto value = peakDb <= meterFloorDb + 0.1f
+                           ? juce::String ("-inf")
+                           : juce::String (peakDb, 1);
+    inputValueLabel.setText ("IN  " + value + " dBFS",
+                             juce::dontSendNotification);
+}
+
 void ChannelStrip::setMuted (bool shouldBeMuted)
 {
     muteButton.setToggleState (shouldBeMuted, juce::dontSendNotification);
@@ -160,16 +241,19 @@ void ChannelStrip::setMuted (bool shouldBeMuted)
 
 void ChannelStrip::resized()
 {
-    auto area = getLocalBounds().reduced (12, 10);
-    channelLabel.setBounds (area.removeFromTop (34));
-    gainValueLabel.setBounds (area.removeFromTop (24));
+    auto area = getLocalBounds().reduced (6, 10);
+    channelLabel.setBounds (area.removeFromTop (30));
+    inputValueLabel.setBounds (area.removeFromTop (20));
+    gainValueLabel.setBounds (area.removeFromTop (20));
     muteButton.setBounds (area.removeFromBottom (26));
     area.removeFromTop (6);
 
     auto meterBounds = area.reduced (0, 8).withSizeKeepingCentre (
-        92, area.getHeight() - 16);
-    meterBounds.translate (-GainMeterBackground::getScaleWidth() / 2, 0);
+        142, area.getHeight() - 16);
+    const auto inputMeterBounds = meterBounds.removeFromLeft (50);
+    meterBounds.removeFromLeft (4);
     gainMeterBackground.setBounds (meterBounds);
+    inputMeter.setBounds (inputMeterBounds);
 }
 
 //==============================================================================
@@ -190,16 +274,17 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
         addAndMakeVisible (channelStrips[channel]);
     }
 
-    setSize (700, 320);
+    setSize (840, 320);
 
     // Start the timer to update the meter levels
     startTimerHz(30); // Update at 30 Hz
 
-    bypassButton.setToggleState (audioProcessor.isAutomixerBypassed(), juce::dontSendNotification);
+    bypassButton.setToggleState (! audioProcessor.isAutomixerBypassed(),
+                                 juce::dontSendNotification);
     bypassButton.onClick = [this]
     {
         audioProcessor.setAutomixerBypassed (
-        bypassButton.getToggleState());
+            ! bypassButton.getToggleState());
     };
 
     addAndMakeVisible (bypassButton);
@@ -225,10 +310,12 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
     {
         channelStrips[channel].setGain (
             audioProcessor.getMeterGain (channel));
+        channelStrips[channel].setInputPeak (
+            audioProcessor.getAndClearInputPeak (channel));
     }
 
     const auto peak = audioProcessor.getAndClearOutputPeak();
-    outputPeakMeter.setGain (peak);
+    outputPeakMeter.setLevel (peak);
     const auto peakDb = juce::Decibels::gainToDecibels (peak, meterFloorDb);
     const auto value = peakDb <= meterFloorDb + 0.1f
                            ? juce::String ("-inf")
@@ -256,7 +343,7 @@ void DuganAutomixerAudioProcessorEditor::resized()
     bypassButton.setBounds (controls.removeFromTop (32));
     outputPeakLabel.setBounds (controls.removeFromTop (28));
     outputPeakMeter.setBounds (
-        controls.withSizeKeepingCentre (36, controls.getHeight() - 12));
+        controls.withSizeKeepingCentre (50, controls.getHeight() - 12));
 
     area.removeFromTop (6);
 
