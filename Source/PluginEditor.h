@@ -73,6 +73,8 @@ public:
     void paint (juce::Graphics& g) override;
     void resized() override;
 
+    static constexpr int getScaleWidth() noexcept { return scaleWidth; }
+
 private:
     static constexpr int scaleWidth = 32;
     GainMeter meter { GainMeter::ColourMode::peak };
@@ -101,6 +103,8 @@ private:
     juce::Label channelLabel;
     juce::Label inputValueLabel;
     juce::Label gainValueLabel;
+    juce::Label inputMeterLabel;
+    juce::Label gainMeterLabel;
     InputMeterBackground inputMeter;
     GainMeterBackground gainMeterBackground;
     juce::ToggleButton muteButton { "Mute" };
@@ -132,6 +136,7 @@ private:
     std::array<ChannelStrip, channelCount> channelStrips;
     juce::ToggleButton bypassButton { "Automix On" };
     juce::Label outputPeakLabel;
+    juce::Label outputPeakMeterLabel;
     InputMeterBackground outputPeakMeter;
     juce::Label outputGainLabel;
     juce::Slider outputGainSlider;

@@ -23,7 +23,17 @@ constexpr float meterFloorDb = -60.0f;
 constexpr float meterInset = 3.0f;
 constexpr double clipIndicatorHoldMs = 2000.0;
 constexpr int scaleLabelHeight = 14;
+constexpr int meterTextWidth = 56;
 constexpr float scaleVerticalInset = scaleLabelHeight / 2.0f;
+
+juce::Rectangle<int> getMeterTextBounds (juce::Rectangle<int> meterBounds,
+                                         int scaleWidth,
+                                         juce::Rectangle<int> rowBounds)
+{
+    meterBounds.removeFromLeft (scaleWidth);
+    return { meterBounds.getCentreX() - meterTextWidth / 2,
+             rowBounds.getY(), meterTextWidth, rowBounds.getHeight() };
+}
 
 float levelToMeterPosition (float level)
 {
@@ -240,17 +250,30 @@ ChannelStrip::ChannelStrip()
     inputValueLabel.setFont (juce::FontOptions (11.0f));
     inputValueLabel.setColour (juce::Label::textColourId,
                                juce::Colour (secondaryText));
-    inputValueLabel.setText ("IN  -inf dBFS", juce::dontSendNotification);
+    inputValueLabel.setText ("-inf dBFS", juce::dontSendNotification);
 
     gainValueLabel.setJustificationType (juce::Justification::centred);
     gainValueLabel.setFont (juce::FontOptions (12.0f));
     gainValueLabel.setColour (juce::Label::textColourId,
                               juce::Colour (secondaryText));
-    gainValueLabel.setText ("GAIN  -inf dB", juce::dontSendNotification);
+    gainValueLabel.setText ("-inf dB", juce::dontSendNotification);
+
+    for (auto* label : { &inputMeterLabel, &gainMeterLabel })
+    {
+        label->setJustificationType (juce::Justification::centred);
+        label->setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        label->setColour (juce::Label::textColourId,
+                          juce::Colour (secondaryText));
+    }
+
+    inputMeterLabel.setText ("IN", juce::dontSendNotification);
+    gainMeterLabel.setText ("GAIN", juce::dontSendNotification);
 
     addAndMakeVisible (channelLabel);
     addAndMakeVisible (inputValueLabel);
     addAndMakeVisible (gainValueLabel);
+    addAndMakeVisible (inputMeterLabel);
+    addAndMakeVisible (gainMeterLabel);
     addAndMakeVisible (inputMeter);
     addAndMakeVisible (gainMeterBackground);
     addAndMakeVisible (muteButton);
@@ -277,7 +300,7 @@ void ChannelStrip::setGain (float newGain)
     const auto value = gainDb <= meterFloorDb + 0.1f
                            ? juce::String ("-inf")
                            : juce::String (gainDb, 1);
-    gainValueLabel.setText ("GAIN  " + value + " dB",
+    gainValueLabel.setText (value + " dB",
                             juce::dontSendNotification);
 }
 
@@ -289,7 +312,7 @@ void ChannelStrip::setInputPeak (float newPeak)
     const auto value = peakDb <= meterFloorDb + 0.1f
                            ? juce::String ("-inf")
                            : juce::String (peakDb, 1);
-    inputValueLabel.setText ("IN  " + value + " dBFS",
+    inputValueLabel.setText (value + " dBFS",
                              juce::dontSendNotification);
     inputValueLabel.setColour (juce::Label::textColourId,
                                inputMeter.isClipIndicatorActive()
@@ -306,17 +329,27 @@ void ChannelStrip::resized()
 {
     auto area = getLocalBounds().reduced (6, 10);
     channelLabel.setBounds (area.removeFromTop (30));
-    inputValueLabel.setBounds (area.removeFromTop (20));
-    gainValueLabel.setBounds (area.removeFromTop (20));
     muteButton.setBounds (area.removeFromBottom (26));
-    area.removeFromTop (6);
+    auto meterLabelArea = area.removeFromBottom (20);
+    area.removeFromBottom (4);
+    auto valueArea = area.removeFromTop (20);
+    area.removeFromTop (4);
 
-    auto meterBounds = area.reduced (0, 8).withSizeKeepingCentre (
-        142, area.getHeight() - 16);
+    auto meterBounds = area.withSizeKeepingCentre (142, area.getHeight());
     const auto inputMeterBounds = meterBounds.removeFromLeft (50);
     meterBounds.removeFromLeft (4);
+
     gainMeterBackground.setBounds (meterBounds);
     inputMeter.setBounds (inputMeterBounds);
+    inputValueLabel.setBounds (getMeterTextBounds (
+        inputMeterBounds, InputMeterBackground::getScaleWidth(), valueArea));
+    gainValueLabel.setBounds (getMeterTextBounds (
+        meterBounds, GainMeterBackground::getScaleWidth(), valueArea));
+    inputMeterLabel.setBounds (getMeterTextBounds (
+        inputMeterBounds, InputMeterBackground::getScaleWidth(),
+        meterLabelArea));
+    gainMeterLabel.setBounds (getMeterTextBounds (
+        meterBounds, GainMeterBackground::getScaleWidth(), meterLabelArea));
 }
 
 //==============================================================================
@@ -352,12 +385,20 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
 
     addAndMakeVisible (bypassButton);
 
-    outputPeakLabel.setText ("OUT  -inf dBFS", juce::dontSendNotification);
+    outputPeakLabel.setText ("-inf dBFS", juce::dontSendNotification);
     outputPeakLabel.setJustificationType (juce::Justification::centred);
     outputPeakLabel.setColour (juce::Label::textColourId,
                                juce::Colour (secondaryText));
     addAndMakeVisible (outputPeakLabel);
     addAndMakeVisible (outputPeakMeter);
+
+    outputPeakMeterLabel.setText ("OUT", juce::dontSendNotification);
+    outputPeakMeterLabel.setJustificationType (juce::Justification::centred);
+    outputPeakMeterLabel.setFont (
+        juce::FontOptions (11.0f, juce::Font::bold));
+    outputPeakMeterLabel.setColour (juce::Label::textColourId,
+                                    juce::Colour (secondaryText));
+    addAndMakeVisible (outputPeakMeterLabel);
 
     outputGainLabel.setText ("GAIN", juce::dontSendNotification);
     outputGainLabel.setJustificationType (juce::Justification::centred);
@@ -413,7 +454,7 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
     const auto value = peakDb <= meterFloorDb + 0.1f
                            ? juce::String ("-inf")
                            : juce::String (peakDb, 1);
-    outputPeakLabel.setText ("OUT  " + value + " dBFS",
+    outputPeakLabel.setText (value + " dBFS",
                              juce::dontSendNotification);
     outputPeakLabel.setColour (juce::Label::textColourId,
                                outputPeakMeter.isClipIndicatorActive()
@@ -435,12 +476,20 @@ void DuganAutomixerAudioProcessorEditor::resized()
     
     auto controls = area.removeFromRight (110);
     bypassButton.setBounds (controls.removeFromTop (32));
-    outputPeakLabel.setBounds (controls.removeFromTop (28));
+    auto outputValueArea = controls.removeFromTop (28);
     auto gainArea = controls.removeFromRight (48);
     outputGainLabel.setBounds (gainArea.removeFromTop (18));
     outputGainSlider.setBounds (gainArea);
-    outputPeakMeter.setBounds (
-        controls.withSizeKeepingCentre (50, controls.getHeight() - 12));
+    auto outputMeterArea = controls.withSizeKeepingCentre (
+        50, controls.getHeight() - 12);
+    auto outputMeterLabelArea = outputMeterArea.removeFromBottom (20);
+    outputPeakLabel.setBounds (getMeterTextBounds (
+        outputMeterArea, InputMeterBackground::getScaleWidth(),
+        outputValueArea));
+    outputPeakMeterLabel.setBounds (getMeterTextBounds (
+        outputMeterArea, InputMeterBackground::getScaleWidth(),
+        outputMeterLabelArea));
+    outputPeakMeter.setBounds (outputMeterArea);
 
     area.removeFromTop (6);
 
