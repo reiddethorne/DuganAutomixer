@@ -128,6 +128,7 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
     
     bypassMix.reset (sampleRate, 0.01); // 10 ms smoothing time for bypass button
     bypassMix.setCurrentAndTargetValue ( isAutomixerBypassed() ? 0.0f : 1.0f ); 
+    outputPeak.store (0.0f, std::memory_order_relaxed);
 }
 
 void DuganAutomixerAudioProcessor::releaseResources()
@@ -189,6 +190,7 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     const float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
 
     bypassMix.setTargetValue (isAutomixerBypassed() ? 0.0f : 1.0f); // Set the target value for the bypassMix based on the bypass state
+    float blockOutputPeak = 0.0f;
     
     for(int sample = 0; sample < numSamples; ++sample){
 
@@ -245,6 +247,15 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         // the stereo output bus.
         leftOutput[sample] = mixedOutput;
         rightOutput[sample] = mixedOutput;
+        blockOutputPeak = juce::jmax (blockOutputPeak, std::abs (mixedOutput));
+    }
+
+    // Keep the highest peak until the UI reads it.
+    auto previousPeak = outputPeak.load (std::memory_order_relaxed);
+    while (previousPeak < blockOutputPeak
+           && ! outputPeak.compare_exchange_weak (
+               previousPeak, blockOutputPeak, std::memory_order_relaxed))
+    {
     }
 
     for (int channel = 0; channel < automixerChannelCount; ++channel)
@@ -267,6 +278,11 @@ float DuganAutomixerAudioProcessor::getMeterGain (
 
     return meterGains[channel].load (
         std::memory_order_relaxed);
+}
+
+float DuganAutomixerAudioProcessor::getAndClearOutputPeak() noexcept
+{
+    return outputPeak.exchange (0.0f, std::memory_order_relaxed);
 }
 
 //==============================================================================

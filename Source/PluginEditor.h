@@ -100,6 +100,8 @@ private:
 
     std::array<ChannelStrip, channelCount> channelStrips;
     juce::ToggleButton bypassButton { "Automix Off" };
+    juce::Label outputPeakLabel;
+    GainMeter outputPeakMeter;
 
     void timerCallback() override;
 

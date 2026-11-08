@@ -203,6 +203,13 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
     };
 
     addAndMakeVisible (bypassButton);
+
+    outputPeakLabel.setText ("OUT  -inf dBFS", juce::dontSendNotification);
+    outputPeakLabel.setJustificationType (juce::Justification::centred);
+    outputPeakLabel.setColour (juce::Label::textColourId,
+                               juce::Colour (secondaryText));
+    addAndMakeVisible (outputPeakLabel);
+    addAndMakeVisible (outputPeakMeter);
 }
 
 DuganAutomixerAudioProcessorEditor::~DuganAutomixerAudioProcessorEditor()
@@ -219,6 +226,18 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
         channelStrips[channel].setGain (
             audioProcessor.getMeterGain (channel));
     }
+
+    const auto peak = audioProcessor.getAndClearOutputPeak();
+    outputPeakMeter.setGain (peak);
+    const auto peakDb = juce::Decibels::gainToDecibels (peak, meterFloorDb);
+    const auto value = peakDb <= meterFloorDb + 0.1f
+                           ? juce::String ("-inf")
+                           : juce::String (peakDb, 1);
+    outputPeakLabel.setText ("OUT  " + value + " dBFS",
+                             juce::dontSendNotification);
+    outputPeakLabel.setColour (juce::Label::textColourId,
+                               peak >= 1.0f ? juce::Colours::red
+                                            : juce::Colour (secondaryText));
 }
 
 //==============================================================================
@@ -233,7 +252,11 @@ void DuganAutomixerAudioProcessorEditor::resized()
     // Divide the available area evenly between channels.
     auto area = getLocalBounds().reduced (18);
     
-    bypassButton.setBounds (area.removeFromRight (90));
+    auto controls = area.removeFromRight (110);
+    bypassButton.setBounds (controls.removeFromTop (32));
+    outputPeakLabel.setBounds (controls.removeFromTop (28));
+    outputPeakMeter.setBounds (
+        controls.withSizeKeepingCentre (36, controls.getHeight() - 12));
 
     area.removeFromTop (6);
 
