@@ -144,6 +144,9 @@ void DuganAutomixerAudioProcessor::prepareToPlay (double sampleRate, int samples
     
     bypassMix.reset (sampleRate, 0.01); // 10 ms smoothing time for bypass button
     bypassMix.setCurrentAndTargetValue ( isAutomixerBypassed() ? 0.0f : 1.0f ); 
+    outputGain.reset (sampleRate, 0.02);
+    outputGain.setCurrentAndTargetValue (
+        juce::Decibels::decibelsToGain (getOutputGainDb()));
     for (auto& inputPeak : inputPeaks)
         inputPeak.store (0.0f, std::memory_order_relaxed);
     outputPeak.store (0.0f, std::memory_order_relaxed);
@@ -208,6 +211,8 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     const float powerFloor = 1.0e-9f; // Power floor to avoid division by zero during silence
 
     bypassMix.setTargetValue (isAutomixerBypassed() ? 0.0f : 1.0f); // Set the target value for the bypassMix based on the bypass state
+    outputGain.setTargetValue (
+        juce::Decibels::decibelsToGain (getOutputGainDb()));
     std::array<float, automixerChannelCount> blockInputPeaks {};
     float blockOutputPeak = 0.0f;
     
@@ -266,9 +271,11 @@ void DuganAutomixerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 
         // The automixer produces one mono mix, sent equally to both sides of
         // the stereo output bus.
-        leftOutput[sample] = mixedOutput;
-        rightOutput[sample] = mixedOutput;
-        blockOutputPeak = juce::jmax (blockOutputPeak, std::abs (mixedOutput));
+        const auto outputSample = mixedOutput * outputGain.getNextValue();
+        leftOutput[sample] = outputSample;
+        rightOutput[sample] = outputSample;
+        blockOutputPeak = juce::jmax (blockOutputPeak,
+                                      std::abs (outputSample));
     }
 
     // Keep the highest peaks until the UI reads them.
@@ -313,6 +320,17 @@ float DuganAutomixerAudioProcessor::getAndClearInputPeak (
         return 0.0f;
 
     return inputPeaks[channel].exchange (0.0f, std::memory_order_relaxed);
+}
+
+void DuganAutomixerAudioProcessor::setOutputGainDb (float newGainDb) noexcept
+{
+    outputGainDb.store (juce::jlimit (-24.0f, 6.0f, newGainDb),
+                        std::memory_order_relaxed);
+}
+
+float DuganAutomixerAudioProcessor::getOutputGainDb() const noexcept
+{
+    return outputGainDb.load (std::memory_order_relaxed);
 }
 
 //==============================================================================

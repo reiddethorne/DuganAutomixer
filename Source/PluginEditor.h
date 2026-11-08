@@ -123,6 +123,8 @@ private:
     juce::ToggleButton bypassButton { "Automix On" };
     juce::Label outputPeakLabel;
     InputMeterBackground outputPeakMeter;
+    juce::Label outputGainLabel;
+    juce::Slider outputGainSlider;
 
     void timerCallback() override;
 

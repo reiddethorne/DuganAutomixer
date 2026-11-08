@@ -295,6 +295,27 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
                                juce::Colour (secondaryText));
     addAndMakeVisible (outputPeakLabel);
     addAndMakeVisible (outputPeakMeter);
+
+    outputGainLabel.setText ("GAIN", juce::dontSendNotification);
+    outputGainLabel.setJustificationType (juce::Justification::centred);
+    outputGainLabel.setColour (juce::Label::textColourId,
+                               juce::Colour (secondaryText));
+
+    outputGainSlider.setSliderStyle (juce::Slider::LinearVertical);
+    outputGainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow,
+                                      false, 70, 18);
+    outputGainSlider.setRange (-24.0, 6.0, 0.1);
+    outputGainSlider.setTextValueSuffix (" dB");
+    outputGainSlider.setValue (audioProcessor.getOutputGainDb(),
+                               juce::dontSendNotification);
+    outputGainSlider.onValueChange = [this]
+    {
+        audioProcessor.setOutputGainDb (
+            static_cast<float> (outputGainSlider.getValue()));
+    };
+
+    addAndMakeVisible (outputGainLabel);
+    addAndMakeVisible (outputGainSlider);
 }
 
 DuganAutomixerAudioProcessorEditor::~DuganAutomixerAudioProcessorEditor()
@@ -342,6 +363,9 @@ void DuganAutomixerAudioProcessorEditor::resized()
     auto controls = area.removeFromRight (110);
     bypassButton.setBounds (controls.removeFromTop (32));
     outputPeakLabel.setBounds (controls.removeFromTop (28));
+    auto gainArea = controls.removeFromRight (48);
+    outputGainLabel.setBounds (gainArea.removeFromTop (18));
+    outputGainSlider.setBounds (gainArea);
     outputPeakMeter.setBounds (
         controls.withSizeKeepingCentre (50, controls.getHeight() - 12));
 

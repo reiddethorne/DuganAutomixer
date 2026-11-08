@@ -64,6 +64,9 @@ public:
     float getAndClearInputPeak (int channel) noexcept;
     float getAndClearOutputPeak() noexcept;
 
+    void setOutputGainDb (float newGainDb) noexcept;
+    float getOutputGainDb() const noexcept;
+
     void setAutomixerBypassed (bool shouldBypass) noexcept
     {
         bypassed.store (shouldBypass, std::memory_order_relaxed);
@@ -91,6 +94,7 @@ private:
     std::array<std::atomic<float>, automixerChannelCount> meterGains {}; // Atomic variables to hold the current gain for each channel
     std::array<std::atomic<float>, automixerChannelCount> inputPeaks {};
     std::atomic<float> outputPeak { 0.0f };
+    std::atomic<float> outputGainDb { 0.0f };
     std::atomic<bool> bypassed { false };
     std::array<std::atomic<bool>, automixerChannelCount> channelMuted {};
     std::array<float, automixerChannelCount> powerEnvelopes {};
@@ -102,6 +106,7 @@ private:
     float gainCoefficient = 0.0f;
 
     juce::SmoothedValue<float> bypassMix {1.0f};
+    juce::SmoothedValue<float> outputGain {1.0f};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DuganAutomixerAudioProcessor)
 };
