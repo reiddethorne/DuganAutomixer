@@ -11,14 +11,17 @@
 
 namespace
 {
-constexpr auto backgroundColour = 0xff222428;
-constexpr auto borderColour     = 0xff42464a;
-constexpr auto meterColour      = 0xff54c878;
-constexpr auto primaryText      = 0xfff0f1f2;
-constexpr auto secondaryText    = 0xff92979d;
+constexpr auto backgroundColour   = 0xff222428;
+constexpr auto borderColour       = 0xff42464a;
+constexpr auto meterColour        = 0xff54c878;
+constexpr auto meterWarningColour = 0xffffc857;
+constexpr auto meterClipColour    = 0xffff5a5f;
+constexpr auto primaryText        = 0xfff0f1f2;
+constexpr auto secondaryText      = 0xff92979d;
 
 constexpr float meterFloorDb = -60.0f;
 constexpr float meterInset = 3.0f;
+constexpr double clipIndicatorHoldMs = 2000.0;
 constexpr int scaleLabelHeight = 14;
 constexpr float scaleVerticalInset = scaleLabelHeight / 2.0f;
 
@@ -31,7 +34,8 @@ float levelToMeterPosition (float level)
 }
 
 //==============================================================================
-GainMeter::GainMeter()
+GainMeter::GainMeter (ColourMode mode)
+    : colourMode (mode)
 {
     setOpaque (true);
 }
@@ -55,10 +59,36 @@ void GainMeter::paint (juce::Graphics& g)
     const auto fill = bounds.withTop (bounds.getBottom()
                                       - bounds.getHeight() * gain);
 
-    g.setColour (juce::Colour (meterColour));
-    g.fillRect (fill);
+    if (colourMode == ColourMode::gain)
+    {
+        g.setColour (juce::Colour (meterColour));
+        g.fillRect (fill);
+        return;
+    }
 
+    const auto fillDbRange = [&] (float bottomDb, float topDb,
+                                  juce::Colour colour)
+    {
+        const auto bottom = bounds.getBottom()
+                            - bounds.getHeight() * levelToMeterPosition (
+                                juce::Decibels::decibelsToGain (bottomDb));
+        const auto top = bounds.getBottom()
+                         - bounds.getHeight() * levelToMeterPosition (
+                             juce::Decibels::decibelsToGain (topDb));
+        const auto segment = juce::Rectangle<float> (
+            bounds.getX(), top, bounds.getWidth(), bottom - top)
+                                 .getIntersection (fill);
 
+        if (! segment.isEmpty())
+        {
+            g.setColour (colour);
+            g.fillRect (segment);
+        }
+    };
+
+    fillDbRange (meterFloorDb, -12.0f, juce::Colour (meterColour));
+    fillDbRange (-12.0f, -3.0f, juce::Colour (meterWarningColour));
+    fillDbRange (-3.0f, 0.0f, juce::Colour (meterClipColour));
 }
 
 //==============================================================================
@@ -125,6 +155,27 @@ InputMeterBackground::InputMeterBackground()
 void InputMeterBackground::setLevel (float newLevel)
 {
     meter.setGain (levelToMeterPosition (newLevel));
+
+    const auto now = juce::Time::getMillisecondCounterHiRes();
+    const auto wasActive = clipIndicatorActive;
+
+    if (newLevel >= 1.0f)
+    {
+        clipIndicatorActive = true;
+        clipIndicatorExpiryMs = now + clipIndicatorHoldMs;
+    }
+    else if (clipIndicatorActive && now >= clipIndicatorExpiryMs)
+    {
+        clipIndicatorActive = false;
+    }
+
+    if (clipIndicatorActive != wasActive)
+        repaint();
+}
+
+bool InputMeterBackground::isClipIndicatorActive() const noexcept
+{
+    return clipIndicatorActive;
 }
 
 void InputMeterBackground::paint (juce::Graphics& g)
@@ -159,6 +210,14 @@ void InputMeterBackground::paint (juce::Graphics& g)
     drawMark (-24.0f, "-24");
     drawMark (-48.0f, "-48");
     drawMark (-60.0f, "-60");
+
+    const auto indicatorBounds = bounds.removeFromTop (4).toFloat().reduced (
+        meterInset, 0.0f);
+    if (clipIndicatorActive)
+    {
+        g.setColour (juce::Colour (meterClipColour));
+        g.fillRect (indicatorBounds);
+    }
 }
 
 void InputMeterBackground::resized()
@@ -232,6 +291,10 @@ void ChannelStrip::setInputPeak (float newPeak)
                            : juce::String (peakDb, 1);
     inputValueLabel.setText ("IN  " + value + " dBFS",
                              juce::dontSendNotification);
+    inputValueLabel.setColour (juce::Label::textColourId,
+                               inputMeter.isClipIndicatorActive()
+                                   ? juce::Colour (meterClipColour)
+                                   : juce::Colour (secondaryText));
 }
 
 void ChannelStrip::setMuted (bool shouldBeMuted)
@@ -353,8 +416,9 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
     outputPeakLabel.setText ("OUT  " + value + " dBFS",
                              juce::dontSendNotification);
     outputPeakLabel.setColour (juce::Label::textColourId,
-                               peak >= 1.0f ? juce::Colours::red
-                                            : juce::Colour (secondaryText));
+                               outputPeakMeter.isClipIndicatorActive()
+                                   ? juce::Colour (meterClipColour)
+                                   : juce::Colour (secondaryText));
 }
 
 //==============================================================================

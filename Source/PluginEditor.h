@@ -14,19 +14,26 @@
 #include <functional>
 
 //==============================================================================
-// Draws only the animated portion of one channel's gain meter. The component
+// Draws the animated portion of a gain or peak meter. The component
 // is opaque so repainting it never requires JUCE to redraw the static artwork
 // behind it.
 class GainMeter : public juce::Component
 {
 public:
-    GainMeter();
+    enum class ColourMode
+    {
+        gain,
+        peak
+    };
+
+    explicit GainMeter (ColourMode mode = ColourMode::gain);
     ~GainMeter() override = default;
 
     void setGain (float newGain);
     void paint (juce::Graphics& g) override;
 
 private:
+    ColourMode colourMode;
     float gain = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GainMeter)
@@ -62,12 +69,15 @@ public:
     ~InputMeterBackground() override = default;
 
     void setLevel (float newLevel);
+    bool isClipIndicatorActive() const noexcept;
     void paint (juce::Graphics& g) override;
     void resized() override;
 
 private:
     static constexpr int scaleWidth = 32;
-    GainMeter meter;
+    GainMeter meter { GainMeter::ColourMode::peak };
+    double clipIndicatorExpiryMs = 0.0;
+    bool clipIndicatorActive = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (InputMeterBackground)
 };
