@@ -24,6 +24,9 @@ constexpr float meterInset = 3.0f;
 constexpr double clipIndicatorHoldMs = 2000.0;
 constexpr int scaleLabelHeight = 14;
 constexpr int meterTextWidth = 56;
+constexpr int outputMeterValueWidth = 70;
+constexpr int outputGainWidth = 60;
+constexpr int outputGainTextBoxHeight = 18;
 constexpr float scaleVerticalInset = scaleLabelHeight / 2.0f;
 
 juce::Rectangle<int> getMeterTextBounds (juce::Rectangle<int> meterBounds,
@@ -387,6 +390,7 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
 
     outputPeakLabel.setText ("-inf dBFS", juce::dontSendNotification);
     outputPeakLabel.setJustificationType (juce::Justification::centred);
+    outputPeakLabel.setFont (juce::FontOptions (11.0f));
     outputPeakLabel.setColour (juce::Label::textColourId,
                                juce::Colour (secondaryText));
     addAndMakeVisible (outputPeakLabel);
@@ -402,12 +406,21 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
 
     outputGainLabel.setText ("GAIN", juce::dontSendNotification);
     outputGainLabel.setJustificationType (juce::Justification::centred);
+    outputGainLabel.setFont (
+        juce::FontOptions (11.0f, juce::Font::bold));
     outputGainLabel.setColour (juce::Label::textColourId,
                                juce::Colour (secondaryText));
 
     outputGainSlider.setSliderStyle (juce::Slider::LinearVertical);
-    outputGainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow,
-                                      false, 70, 18);
+    outputGainSlider.setTextBoxStyle (juce::Slider::TextBoxAbove,
+                                      false, outputGainWidth,
+                                      outputGainTextBoxHeight);
+
+    for (int child = 0; child < outputGainSlider.getNumChildComponents(); ++child)
+        if (auto* valueLabel = dynamic_cast<juce::Label*> (
+                outputGainSlider.getChildComponent (child)))
+            valueLabel->setFont (juce::FontOptions (11.0f));
+
     outputGainSlider.setRange (-24.0, 6.0, 0.1);
     outputGainSlider.setTextValueSuffix (" dB");
     outputGainSlider.setValue (audioProcessor.getOutputGainDb(),
@@ -474,21 +487,23 @@ void DuganAutomixerAudioProcessorEditor::resized()
     // Divide the available area evenly between channels.
     auto area = getLocalBounds().reduced (18);
     
-    auto controls = area.removeFromRight (110);
+    auto controls = area.removeFromRight (
+        outputMeterValueWidth + outputGainWidth);
     bypassButton.setBounds (controls.removeFromTop (32));
     auto outputValueArea = controls.removeFromTop (28);
-    auto gainArea = controls.removeFromRight (48);
-    outputGainLabel.setBounds (gainArea.removeFromTop (18));
-    outputGainSlider.setBounds (gainArea);
+    outputValueArea.removeFromRight (outputGainWidth);
+    auto gainArea = controls.removeFromRight (outputGainWidth);
+    auto outputGainLabelArea = gainArea.removeFromBottom (20);
+    outputGainLabel.setBounds (outputGainLabelArea.withSizeKeepingCentre (
+        meterTextWidth, outputGainLabelArea.getHeight()));
+    outputGainSlider.setBounds (
+        gainArea.getX(), gainArea.getY() - outputGainTextBoxHeight,
+        gainArea.getWidth(), gainArea.getHeight() + outputGainTextBoxHeight);
+    auto outputMeterLabelArea = controls.removeFromBottom (20);
     auto outputMeterArea = controls.withSizeKeepingCentre (
-        50, controls.getHeight() - 12);
-    auto outputMeterLabelArea = outputMeterArea.removeFromBottom (20);
-    outputPeakLabel.setBounds (getMeterTextBounds (
-        outputMeterArea, InputMeterBackground::getScaleWidth(),
-        outputValueArea));
-    outputPeakMeterLabel.setBounds (getMeterTextBounds (
-        outputMeterArea, InputMeterBackground::getScaleWidth(),
-        outputMeterLabelArea));
+        50, controls.getHeight());
+    outputPeakLabel.setBounds (outputValueArea);
+    outputPeakMeterLabel.setBounds (outputMeterLabelArea);
     outputPeakMeter.setBounds (outputMeterArea);
 
     area.removeFromTop (6);
