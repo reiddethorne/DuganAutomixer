@@ -91,16 +91,17 @@ class ChannelStrip : public juce::Component
 public:
     ChannelStrip();
 
-    void setChannelNumber (int channelNumber);
+    void setInputName (const juce::String& inputName);
     void setInputPeak (float newPeak);
     void setGain (float newGain);
     void setMuted (bool shouldBeMuted);
     void resized() override;
 
     std::function<void (bool)> onMuteChanged;
+    std::function<void (const juce::String&)> onInputNameChanged;
 
 private:
-    juce::Label channelLabel;
+    juce::Label inputNameLabel;
     juce::Label inputValueLabel;
     juce::Label gainValueLabel;
     juce::Label inputMeterLabel;

@@ -244,10 +244,17 @@ void InputMeterBackground::resized()
 //==============================================================================
 ChannelStrip::ChannelStrip()
 {
-    channelLabel.setJustificationType (juce::Justification::centred);
-    channelLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-    channelLabel.setColour (juce::Label::textColourId,
-                            juce::Colour (primaryText));
+    inputNameLabel.setJustificationType (juce::Justification::centred);
+    inputNameLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    inputNameLabel.setColour (juce::Label::textColourId,
+                              juce::Colour (primaryText));
+    inputNameLabel.setEditable (true, true, false);
+    inputNameLabel.setTooltip ("Click to edit this input name");
+    inputNameLabel.onTextChange = [this]
+    {
+        if (onInputNameChanged)
+            onInputNameChanged (inputNameLabel.getText());
+    };
 
     inputValueLabel.setJustificationType (juce::Justification::centred);
     inputValueLabel.setFont (juce::FontOptions (11.0f));
@@ -272,7 +279,7 @@ ChannelStrip::ChannelStrip()
     inputMeterLabel.setText ("IN", juce::dontSendNotification);
     gainMeterLabel.setText ("GAIN", juce::dontSendNotification);
 
-    addAndMakeVisible (channelLabel);
+    addAndMakeVisible (inputNameLabel);
     addAndMakeVisible (inputValueLabel);
     addAndMakeVisible (gainValueLabel);
     addAndMakeVisible (inputMeterLabel);
@@ -288,10 +295,11 @@ ChannelStrip::ChannelStrip()
     };
 }
 
-void ChannelStrip::setChannelNumber (int channelNumber)
+void ChannelStrip::setInputName (const juce::String& inputName)
 {
-    channelLabel.setText ("INPUT " + juce::String (channelNumber),
-                          juce::dontSendNotification);
+    if (! inputNameLabel.isBeingEdited()
+        && inputNameLabel.getText() != inputName)
+        inputNameLabel.setText (inputName, juce::dontSendNotification);
 }
 
 void ChannelStrip::setGain (float newGain)
@@ -331,7 +339,7 @@ void ChannelStrip::setMuted (bool shouldBeMuted)
 void ChannelStrip::resized()
 {
     auto area = getLocalBounds().reduced (6, 10);
-    channelLabel.setBounds (area.removeFromTop (30));
+    inputNameLabel.setBounds (area.removeFromTop (30));
     muteButton.setBounds (area.removeFromBottom (26));
     auto meterLabelArea = area.removeFromBottom (20);
     area.removeFromBottom (4);
@@ -364,8 +372,14 @@ DuganAutomixerAudioProcessorEditor::DuganAutomixerAudioProcessorEditor (DuganAut
 
     for (int channel = 0; channel < channelCount; ++channel)
     {
-        channelStrips[channel].setChannelNumber (channel + 1);
+        channelStrips[channel].setInputName (
+            audioProcessor.getInputName (channel));
         channelStrips[channel].setMuted (audioProcessor.isChannelMuted (channel));
+        channelStrips[channel].onInputNameChanged = [this, channel] (
+            const juce::String& inputName)
+        {
+            audioProcessor.setInputName (channel, inputName);
+        };
         channelStrips[channel].onMuteChanged = [this, channel] (bool shouldBeMuted)
         {
             audioProcessor.setChannelMuted (channel, shouldBeMuted);
@@ -446,6 +460,8 @@ void DuganAutomixerAudioProcessorEditor::timerCallback()
 {
     for (int channel = 0; channel < channelCount; ++channel)
     {
+        channelStrips[channel].setInputName (
+            audioProcessor.getInputName (channel));
         channelStrips[channel].setGain (
             audioProcessor.getMeterGain (channel));
         channelStrips[channel].setInputPeak (

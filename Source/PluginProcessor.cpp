@@ -46,6 +46,9 @@ DuganAutomixerAudioProcessor::DuganAutomixerAudioProcessor()
 
     for (auto& muted : channelMuted)
         muted.store (false, std::memory_order_relaxed);
+
+    for (int channel = 0; channel < automixerChannelCount; ++channel)
+        inputNames[channel] = "INPUT " + juce::String (channel + 1);
 }
 
 DuganAutomixerAudioProcessor::~DuganAutomixerAudioProcessor()
@@ -333,6 +336,34 @@ float DuganAutomixerAudioProcessor::getOutputGainDb() const noexcept
     return outputGainDb.load (std::memory_order_relaxed);
 }
 
+void DuganAutomixerAudioProcessor::setInputName (
+    int channel, const juce::String& newName, bool notifyHost)
+{
+    if (! juce::isPositiveAndBelow (channel, automixerChannelCount))
+        return;
+
+    bool nameChanged = false;
+
+    {
+        const juce::ScopedLock lock (inputNamesLock);
+        nameChanged = inputNames[channel] != newName;
+        inputNames[channel] = newName;
+    }
+
+    if (nameChanged && notifyHost)
+        updateHostDisplay (
+            ChangeDetails{}.withNonParameterStateChanged (true));
+}
+
+juce::String DuganAutomixerAudioProcessor::getInputName (int channel) const
+{
+    if (! juce::isPositiveAndBelow (channel, automixerChannelCount))
+        return {};
+
+    const juce::ScopedLock lock (inputNamesLock);
+    return inputNames[channel];
+}
+
 //==============================================================================
 bool DuganAutomixerAudioProcessor::hasEditor() const
 {
@@ -352,8 +383,12 @@ void DuganAutomixerAudioProcessor::getStateInformation (juce::MemoryBlock& destD
     state.setAttribute ("automixOn", ! isAutomixerBypassed());
 
     for (int channel = 0; channel < automixerChannelCount; ++channel)
+    {
         state.setAttribute ("mute" + juce::String (channel),
                             isChannelMuted (channel));
+        state.setAttribute ("inputName" + juce::String (channel),
+                            getInputName (channel));
+    }
 
     copyXmlToBinary (state, destData);
 }
@@ -371,10 +406,18 @@ void DuganAutomixerAudioProcessor::setStateInformation (const void* data, int si
         ! state->getBoolAttribute ("automixOn", true));
 
     for (int channel = 0; channel < automixerChannelCount; ++channel)
+    {
         setChannelMuted (
             channel,
             state->getBoolAttribute (
                 "mute" + juce::String (channel), false));
+        setInputName (
+            channel,
+            state->getStringAttribute (
+                "inputName" + juce::String (channel),
+                "INPUT " + juce::String (channel + 1)),
+            false);
+    }
 }
 
 //==============================================================================

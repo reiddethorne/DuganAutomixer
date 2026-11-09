@@ -66,6 +66,9 @@ public:
 
     void setOutputGainDb (float newGainDb) noexcept;
     float getOutputGainDb() const noexcept;
+    void setInputName (int channel, const juce::String& newName,
+                       bool notifyHost = true);
+    juce::String getInputName (int channel) const;
 
     void setAutomixerBypassed (bool shouldBypass) noexcept
     {
@@ -97,6 +100,8 @@ private:
     std::atomic<float> outputGainDb { 0.0f };
     std::atomic<bool> bypassed { false };
     std::array<std::atomic<bool>, automixerChannelCount> channelMuted {};
+    std::array<juce::String, automixerChannelCount> inputNames;
+    mutable juce::CriticalSection inputNamesLock;
     std::array<float, automixerChannelCount> powerEnvelopes {};
     std::array<float, automixerChannelCount> smoothedGains {};
     std::array<juce::SmoothedValue<float>, automixerChannelCount> muteGains;
