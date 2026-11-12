@@ -1,5 +1,7 @@
 # DuganAutomixer
 
+[![Build](https://github.com/reiddethorne/DuganAutomixer/actions/workflows/build.yml/badge.svg)](https://github.com/reiddethorne/DuganAutomixer/actions/workflows/build.yml)
+
 A cross-platform, four-microphone gain-sharing automixer built with C++17 and JUCE. It runs as a standalone desktop application.
 
 I built this project to learn how an automixer behaves in practice and to work through the real-time details around smoothing, metering, UI communication, and plugin state. When several microphones are open, the plugin gives more gain to the active speaker and turns down quieter inputs. The result is a mono mix sent to both output channels.
