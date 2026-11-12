@@ -12,17 +12,11 @@ project(DuganAutomixer
 
 add_subdirectory(JUCE)
 
-set(DUGAN_PLUGIN_FORMATS VST3 Standalone)
-
-if(APPLE)
-    list(APPEND DUGAN_PLUGIN_FORMATS AU)
-endif()
-
 juce_add_plugin(DuganAutomixer
     VERSION ${PROJECT_VERSION}
-    COMPANY_NAME "yourcompany"
-    COMPANY_WEBSITE "www.yourcompany.com"
-    BUNDLE_ID "com.yourcompany.DuganAutomixer"
+    COMPANY_NAME "Reid Dethorne"
+    COMPANY_WEBSITE "https://github.com/reiddethorne"
+    BUNDLE_ID "io.github.reiddethorne.duganautomixer"
     PLUGIN_MANUFACTURER_CODE Manu
     PLUGIN_CODE Wagu
     DESCRIPTION "DuganAutomixer"
@@ -34,13 +28,10 @@ juce_add_plugin(DuganAutomixer
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     NEEDS_WEB_BROWSER FALSE
     NEEDS_CURL FALSE
-    AU_MAIN_TYPE kAudioUnitType_Effect
-    VST3_CATEGORIES Fx
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT
         "Automixer needs microphone access to process live audio."
-    COPY_PLUGIN_AFTER_BUILD FALSE
-    FORMATS ${DUGAN_PLUGIN_FORMATS})
+    FORMATS Standalone)
 
 target_sources(DuganAutomixer
     PRIVATE
@@ -59,8 +50,7 @@ target_compile_definitions(DuganAutomixer
     PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_STRICT_REFCOUNTEDPOINTER=1
-        JUCE_VST3_CAN_REPLACE_VST2=0)
+        JUCE_STRICT_REFCOUNTEDPOINTER=1)
 
 target_link_libraries(DuganAutomixer
     PRIVATE

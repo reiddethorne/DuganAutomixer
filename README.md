@@ -1,6 +1,6 @@
 # DuganAutomixer
 
-A four-microphone gain-sharing automixer built with C++17 and JUCE. It runs as a macOS Audio Unit, VST3, or standalone application.
+A cross-platform, four-microphone gain-sharing automixer built with C++17 and JUCE. It runs as a standalone desktop application.
 
 I built this project to learn how an automixer behaves in practice and to work through the real-time details around smoothing, metering, UI communication, and plugin state. When several microphones are open, the plugin gives more gain to the active speaker and turns down quieter inputs. The result is a mono mix sent to both output channels.
 
@@ -37,11 +37,11 @@ The part I found most interesting was keeping the audio callback separate from t
 - The audio thread publishes meter values through atomics. The UI reads them at 30 Hz and clears stored peaks after each read.
 - Input names are protected separately because the audio callback never needs to read them.
 - Mute and bypass changes are faded to avoid abrupt discontinuities.
-- Plugin state is serialized as XML for host-session recall.
+- Application state is serialized as XML for recall between runs.
 
 ## Building
 
-The project uses CMake 3.22 or later and includes JUCE 9.0.2 as a Git submodule. On macOS it builds AU, VST3, and Standalone targets. On Windows it builds VST3 and Standalone targets.
+The project uses CMake 3.22 or later and includes JUCE 9.0.2 as a Git submodule. It builds a standalone application on macOS and Windows.
 
 For a fresh checkout, clone the repository and its JUCE submodule together:
 
@@ -63,7 +63,7 @@ Install Xcode and CMake, then generate and build an Xcode project:
 ```sh
 cmake -S . -B build/macos -G Xcode
 cmake --build build/macos --config Release \
-    --target DuganAutomixer_AU DuganAutomixer_VST3 DuganAutomixer_Standalone
+    --target DuganAutomixer_Standalone
 ```
 
 macOS 12 is the minimum deployment target. To build a universal binary, add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` to the configure command.
@@ -75,20 +75,19 @@ Install CMake and Visual Studio with the Desktop development with C++ workload, 
 ```powershell
 cmake -S . -B build/windows -A x64
 cmake --build build/windows --config Release `
-    --target DuganAutomixer_VST3 DuganAutomixer_Standalone
+    --target DuganAutomixer_Standalone
 ```
 
-Build products are written beneath `build/macos/DuganAutomixer_artefacts/` on macOS and `build/windows/DuganAutomixer_artefacts/` on Windows. `COPY_PLUGIN_AFTER_BUILD` is disabled, so builds do not modify system plugin directories automatically.
+The release application is written to `build/macos/DuganAutomixer_artefacts/Release/Standalone/DuganAutomixer.app` on macOS and `build/windows/DuganAutomixer_artefacts/Release/Standalone/DuganAutomixer.exe` on Windows.
 
-The plugin requires a host configuration with four discrete inputs and two outputs. Both outputs carry the same mono mix.
+The application requires an audio interface with at least four discrete inputs and two outputs. Both outputs carry the same mono mix.
 
 ## Current limitations
 
 - The channel layout is fixed at four inputs and two identical outputs.
-- Controls are saved with the session but are not exposed as host-automation parameters.
 - Windows builds are configured but have not yet been built or tested on Windows.
 - There is no output limiter, so bypassing automix may require additional headroom.
-- Automated DSP tests, callback benchmarks, and systematic testing across plugin hosts are still to be added.
+- Automated DSP tests and callback benchmarks are still to be added.
 
 My next step is to add signal-based regression tests across sample rates and buffer sizes, then measure worst-case callback time rather than making assumptions about performance.
 
