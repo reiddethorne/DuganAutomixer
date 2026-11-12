@@ -41,13 +41,44 @@ The part I found most interesting was keeping the audio callback separate from t
 
 ## Building
 
-You will need macOS 12 or later, Xcode, and JUCE/Projucer. JUCE is not included in this repository.
+The project uses CMake 3.22 or later and includes JUCE 9.0.2 as a Git submodule. On macOS it builds AU, VST3, and Standalone targets. On Windows it builds VST3 and Standalone targets.
 
-1. Open [`DuganAutomixer.jucer`](DuganAutomixer.jucer) in Projucer. The checked-in project was generated with Projucer 9.0.2.
-2. Point the global JUCE modules path to your local `JUCE/modules` directory.
-3. Save the project to regenerate the Xcode files with your local paths.
-4. Open `Builds/MacOSX/DuganAutomixer.xcodeproj`.
-5. Build the AU, VST3, or Standalone Plugin scheme.
+For a fresh checkout, clone the repository and its JUCE submodule together:
+
+```sh
+git clone --recurse-submodules https://github.com/reiddethorne/DuganAutomixer.git
+cd DuganAutomixer
+```
+
+If the repository is already cloned, initialise the submodule with:
+
+```sh
+git submodule update --init --recursive
+```
+
+### macOS
+
+Install Xcode and CMake, then generate and build an Xcode project:
+
+```sh
+cmake -S . -B build/macos -G Xcode
+cmake --build build/macos --config Release \
+    --target DuganAutomixer_AU DuganAutomixer_VST3 DuganAutomixer_Standalone
+```
+
+macOS 12 is the minimum deployment target. To build a universal binary, add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` to the configure command.
+
+### Windows
+
+Install CMake and Visual Studio with the Desktop development with C++ workload, then run these commands from a Developer PowerShell:
+
+```powershell
+cmake -S . -B build/windows -A x64
+cmake --build build/windows --config Release `
+    --target DuganAutomixer_VST3 DuganAutomixer_Standalone
+```
+
+Build products are written beneath `build/macos/DuganAutomixer_artefacts/` on macOS and `build/windows/DuganAutomixer_artefacts/` on Windows. `COPY_PLUGIN_AFTER_BUILD` is disabled, so builds do not modify system plugin directories automatically.
 
 The plugin requires a host configuration with four discrete inputs and two outputs. Both outputs carry the same mono mix.
 
@@ -55,9 +86,9 @@ The plugin requires a host configuration with four discrete inputs and two outpu
 
 - The channel layout is fixed at four inputs and two identical outputs.
 - Controls are saved with the session but are not exposed as host-automation parameters.
-- Only a macOS exporter is currently configured.
+- Windows builds are configured but have not yet been built or tested on Windows.
 - There is no output limiter, so bypassing automix may require additional headroom.
-- Automated DSP tests, callback benchmarks, and a host-compatibility matrix are still to be added.
+- Automated DSP tests, callback benchmarks, and systematic testing across plugin hosts are still to be added.
 
 My next step is to add signal-based regression tests across sample rates and buffer sizes, then measure worst-case callback time rather than making assumptions about performance.
 

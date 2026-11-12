@@ -27,12 +27,6 @@ xcuserdata/
 *.xcscmblueprint
 
 # ==========================================
-# Projucer & JUCE Local User Files
-# ==========================================
-*.jucer.user
-.projucer*
-
-# ==========================================
 # Compiled Binary Targets & Libraries
 # ==========================================
 *.app/
@@ -50,4 +44,3 @@ xcuserdata/
 # ==========================================
 .vscode/
 .idea/
-Builds/MacOSX/DuganAutomixer.xcodeproj/xcshareddata/xcschemes/DuganAutomixer - All.xcscheme
